@@ -82,9 +82,10 @@ export default function MembershipPage() {
 
   // 从后端刷新会员状态
   const refreshMemberStatus = async () => {
-    if (!user?.objectId || !user?.sessionToken) return;
     try {
-      const status = await memberApi.getStatus(user.objectId, user.sessionToken);
+      if (!user?.objectId) return;
+
+      const status = await memberApi.getStatus(user.objectId);
       setMemberStatus(status);
       // 同步更新 user store 中的 memberLevel
       if (status.member_level !== user.memberLevel) {
@@ -98,7 +99,7 @@ export default function MembershipPage() {
   // 页面加载时获取会员状态
   useEffect(() => {
     refreshMemberStatus();
-  }, [user?.objectId, user?.sessionToken]);
+  }, [user?.objectId]);
 
   // 加载套餐列表
   useEffect(() => {
@@ -119,10 +120,10 @@ export default function MembershipPage() {
   // 加载订阅记录
   useEffect(() => {
     async function loadOrders() {
-      if (!user?.objectId || !user?.sessionToken) return;
+      if (!user?.objectId) return;
       setOrdersLoading(true);
       try {
-        const result = await memberApi.getOrders(user.objectId, user.sessionToken);
+        const result = await memberApi.getOrders(user.objectId);
         setOrders(result.orders || []);
       } catch (error) {
         console.error('加载订阅记录失败:', error);
@@ -133,7 +134,7 @@ export default function MembershipPage() {
     if (activeTab === 'orders') {
       loadOrders();
     }
-  }, [user?.objectId, user?.sessionToken, activeTab]);
+  }, [user?.objectId, activeTab]);
 
   // 获取当前选中的套餐
   const selectedPlan = useMemo(() => {
@@ -168,7 +169,6 @@ export default function MembershipPage() {
       const result = await memberApi.subscribe({
         user_id: user.objectId,
         plan_id: selectedPlan.plan_id,
-        session_token: user.sessionToken,
       });
 
       if (result.success) {
@@ -190,13 +190,12 @@ export default function MembershipPage() {
 
   // 模拟支付
   const handleSimulatePay = async () => {
-    if (!payInfo?.orderId || !user?.sessionToken) return;
+    if (!payInfo?.orderId) return;
 
     setLoading(true);
     try {
       const result = await memberApi.simulatePay({
         order_id: payInfo.orderId,
-        session_token: user.sessionToken,
       });
 
       if (result.success) {
@@ -223,22 +222,16 @@ export default function MembershipPage() {
   const [paymentChecking, setPaymentChecking] = useState(false);
 
   const startPaymentPolling = useCallback(() => {
-    if (!payInfo?.orderId || !user?.sessionToken || payInfo?.testMode) return;
-    
-    setPaymentChecking(true);
-    
-    // 每3秒检查一次支付状态，最多检查60次（3分钟）
+    if (!payInfo?.orderId || payInfo?.testMode) return;
+
     let count = 0;
-    const maxCount = 60;
-    const sessionToken = user.sessionToken;
-    const orderId = payInfo.orderId;
-    
+    const maxCount = 60; // 最多轮询3分钟
+
     pollingRef.current = setInterval(async () => {
       count++;
       try {
-        // 调用后端查询订单状态 API
-        const result = await memberApi.checkOrderStatus(orderId, sessionToken);
-        
+        const result = await memberApi.checkOrderStatus(payInfo.orderId);
+
         if (result.status === 'paid') {
           // 支付成功
           stopPaymentPolling();
@@ -259,7 +252,7 @@ export default function MembershipPage() {
         console.error('检查支付状态失败:', error);
       }
     }, 3000);
-  }, [payInfo, user?.sessionToken]);
+  }, [payInfo]);
 
   const stopPaymentPolling = useCallback(() => {
     if (pollingRef.current) {

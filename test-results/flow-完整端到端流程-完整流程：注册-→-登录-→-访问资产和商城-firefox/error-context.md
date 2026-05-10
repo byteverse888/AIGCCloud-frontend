@@ -1,0 +1,24 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: flow.spec.ts >> 完整端到端流程 >> 完整流程：注册 → 登录 → 访问资产和商城
+- Location: e2e/flow.spec.ts:14:7
+
+# Error details
+
+```
+Error: browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/firefox-1511/firefox/firefox
+╔════════════════════════════════════════════════════════════╗
+║ Looks like Playwright was just installed or updated.       ║
+║ Please run the following command to download new browsers: ║
+║                                                            ║
+║     npx playwright install                                 ║
+║                                                            ║
+║ <3 Playwright Team                                         ║
+╚════════════════════════════════════════════════════════════╝
+```

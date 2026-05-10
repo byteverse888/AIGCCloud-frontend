@@ -441,7 +441,7 @@ export default function MarketPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="搜索商品..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+          <Input placeholder="搜索商品..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); if (e.target.value === '') { setPage(1); fetchProducts(); } }} onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); fetchProducts(); } }} className="pl-10" />
         </div>
         <div className="flex gap-2">
           <Select value={category} onValueChange={(v) => { setCategory(v); setPage(1); }}>

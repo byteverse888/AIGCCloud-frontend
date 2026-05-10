@@ -71,6 +71,12 @@ export const userApi = {
 
   verifyWeb3: (address: string) =>
     fetchApi(`/api/v1/users/verify-web3/${address}`),
+
+  withdraw: (data: { amount: number; method: string; account: string; account_name: string; bank_name?: string }) =>
+    fetchApi('/api/v1/users/withdraw', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // Auth API
@@ -270,6 +276,18 @@ export const taskApi = {
 
   getUserTasks: (userId: string, page = 1, limit = 20) =>
     fetchApi(`/api/v1/tasks/user/${userId}?page=${page}&limit=${limit}`),
+
+  retryTask: (taskId: string, userId: string) =>
+    fetchApi(`/api/v1/tasks/${taskId}/retry`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
+
+  convertTaskToAsset: (taskId: string) =>
+    fetchApi<{ success: boolean; asset_id: string }>(
+      `/api/v1/tasks/ai-task/${taskId}/convert`,
+      { method: 'POST' }
+    ),
 };
 
 // Incentive API
@@ -313,7 +331,6 @@ export const memberApi = {
     user_id: string;
     plan_id: string;
     openid?: string;
-    session_token?: string;
   }) =>
     fetchApi<{
       success: boolean;
@@ -330,7 +347,7 @@ export const memberApi = {
     }),
 
   // 模拟支付（测试模式）
-  simulatePay: (data: { order_id: string; session_token?: string }) =>
+  simulatePay: (data: { order_id: string }) =>
     fetchApi<{
       success: boolean;
       order_id?: string;
@@ -341,17 +358,15 @@ export const memberApi = {
     }),
 
   // 获取会员状态
-  getStatus: (userId: string, sessionToken: string) =>
+  getStatus: (userId: string) =>
     fetchApi<{
       member_level: string;
       member_expire_at?: string;
       is_expired: boolean;
-    }>(`/api/v1/member/status/${userId}`, {
-      headers: { 'X-Parse-Session-Token': sessionToken },
-    }),
+    }>(`/api/v1/member/status/${userId}`),
 
   // 获取订阅记录
-  getOrders: (userId: string, sessionToken: string, limit = 20, skip = 0) =>
+  getOrders: (userId: string, limit = 20, skip = 0) =>
     fetchApi<{
       orders: Array<{
         orderId: string;
@@ -366,19 +381,15 @@ export const memberApi = {
         paidAt?: string;
       }>;
       total: number;
-    }>(`/api/v1/member/orders/${userId}?limit=${limit}&skip=${skip}`, {
-      headers: { 'X-Parse-Session-Token': sessionToken },
-    }),
+    }>(`/api/v1/member/orders/${userId}?limit=${limit}&skip=${skip}`),
 
   // 查询订单支付状态（轮询用）
-  checkOrderStatus: (orderId: string, sessionToken: string) =>
+  checkOrderStatus: (orderId: string) =>
     fetchApi<{
       order_id: string;
       status: 'pending' | 'paid' | 'failed' | 'cancelled';
       paid_at?: string;
-    }>(`/api/v1/member/order-status/${orderId}`, {
-      headers: { 'X-Parse-Session-Token': sessionToken },
-    }),
+    }>(`/api/v1/member/order-status/${orderId}`),
 };
 
 // Wallet API
@@ -545,7 +556,7 @@ export const adminApi = {
   },
 
   // 用户列表
-  listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
+listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
     if (params.limit) qs.set('limit', String(params.limit));
@@ -557,6 +568,20 @@ export const adminApi = {
       limit: number;
     }>(`/api/v1/users/admin/list?${qs.toString()}`);
   },
+
+  // 管理员创建用户
+  createUser: (data: {
+    username: string;
+    password: string;
+    email?: string;
+    phone?: string;
+    role: string;
+    level?: number;
+  }) =>
+    fetchApi<{ success: boolean; user_id: string; objectId: string }>('/api/v1/users/admin/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // 商品审核
   reviewProduct: (data: { product_id: string; status: string; review_note?: string }) =>
@@ -683,6 +708,179 @@ export const adminApi = {
 
   accountSummary: () =>
     fetchApi<{ balance: number; totalIncome: number; totalExpense: number }>('/api/v1/admin/accounts/summary'),
+
+  // 重置用户密码（Operator/Admin权限）
+  resetUserPassword: (userId: string, newPassword?: string) =>
+    fetchApi<{ success: boolean; message: string; new_password: string }>('/api/v1/users/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, new_password: newPassword }),
+    }),
+
+  // 为用户充值（Operator/Admin权限）
+  rechargeUserAccount: (userId: string, amount: number) =>
+    fetchApi<{ success: boolean; message: string; amount: number; new_balance: number; record_id: string }>('/api/v1/users/admin/recharge', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, amount }),
+    }),
+
+  // 更新用户信息（Admin权限）
+  updateUser: (userId: string, data: { email?: string; phone?: string; level?: number }) =>
+    fetchApi<{ success: boolean; message: string }>('/api/v1/users/admin/update', {
+      method: 'PUT',
+      body: JSON.stringify({ user_id: userId, ...data }),
+    }),
+};
+
+// Assets API
+export const assetsApi = {
+  // 发布资产
+  publish: (data: {
+    name: string;
+    description?: string;
+    category: string;
+    price: number;
+    cover_key?: string;
+  }) =>
+    fetchApi<{
+      success: boolean;
+      id?: string;
+      message?: string;
+    }>('/api/v1/assets/publish', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // 获取我的资产列表
+  getMyAssets: (params: { page?: number; limit?: number; status?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.status) qs.set('status', params.status);
+    return fetchApi<{
+      data: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        category: string;
+        price: number;
+        status: string;
+        sales: number;
+        coverKey?: string;
+        createdAt: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/api/v1/assets/my?${qs.toString()}`);
+  },
+
+  // 获取资产详情
+  getAsset: (assetId: string) =>
+    fetchApi<{
+      id: string;
+      name: string;
+      description?: string;
+      category: string;
+      price: number;
+      status: string;
+      sales: number;
+      coverKey?: string;
+      creatorId?: string;
+      owner?: string;
+      createdAt: string;
+    }>(`/api/v1/assets/${assetId}`),
+
+  // 编辑资产
+  updateAsset: (assetId: string, data: {
+    name?: string;
+    description?: string;
+    category?: string;
+    coverKey?: string;
+    copyright?: string;
+    license?: string;
+    tags?: string[];
+  }) =>
+    fetchApi<{ success: boolean; message: string }>(
+      `/api/v1/assets/${assetId}`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    ),
+
+  // 提交审核
+  submitForReview: (assetId: string) =>
+    fetchApi<{ success: boolean; product_id: string; message: string }>(
+      `/api/v1/assets/${assetId}/submit`,
+      { method: 'POST' }
+    ),
+
+  // 购买资产
+  purchase: (assetId: string) =>
+    fetchApi<{
+      success: boolean;
+      order_id?: string;
+      amount?: number;
+      free?: boolean;
+      message?: string;
+    }>(`/api/v1/assets/${assetId}/purchase`, { method: 'POST' }),
+
+  // 获取已购买的资产
+  getPurchases: (params: { page?: number; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    return fetchApi<{
+      data: Array<{
+        order_id: string;
+        order_no: string;
+        asset: { id: string; name: string; coverKey?: string };
+        amount: number;
+        status: string;
+        createdAt: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/api/v1/assets/purchases?${qs.toString()}`);
+  },
+
+  // 购物车
+  cart: {
+    get: () =>
+      fetchApi<{
+        data: Array<{
+          asset_id: string;
+          name: string;
+          price: number;
+          coverKey?: string;
+          addedAt: string;
+        }>;
+        total: number;
+      }>('/api/v1/assets/cart'),
+
+    add: (assetId: string) =>
+      fetchApi<{
+        success: boolean;
+        message: string;
+        count: number;
+      }>('/api/v1/assets/cart', {
+        method: 'POST',
+        body: JSON.stringify({ asset_id: assetId }),
+      }),
+
+    remove: (assetId: string) =>
+      fetchApi<{
+        success: boolean;
+        message: string;
+        count: number;
+      }>(`/api/v1/assets/cart/${assetId}`, { method: 'DELETE' }),
+
+    checkout: () =>
+      fetchApi<{
+        success: boolean;
+        orders: Array<{ order_no: string; amount: number }>;
+        total: number;
+        message: string;
+      }>('/api/v1/assets/cart/checkout', { method: 'POST' }),
+  },
 };
 
 export default {
@@ -695,5 +893,59 @@ export default {
   member: memberApi,
   wallet: walletApi,
   storage: storageApi,
+  assets: assetsApi,
+  operator: {
+    getOrders: (params: { page?: number; limit?: number; status?: string; search?: string } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.page) qs.set('page', String(params.page));
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.status) qs.set('status', params.status);
+      if (params.search) qs.set('search', params.search);
+      return fetchApi<{
+        data: Array<{
+          id: string;
+          orderNo: string;
+          user: string;
+          userId: string;
+          amount: number;
+          status: string;
+          type: string;
+          paymentMethod: string;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        limit: number;
+      }>(`/api/v1/operator/orders?${qs.toString()}`);
+    },
+
+    getOrderDetail: (orderId: string) =>
+      fetchApi<{
+        id: string;
+        orderNo: string;
+        userId: string;
+        username: string;
+        productId: string;
+        productName: string;
+        amount: number;
+        status: string;
+        type: string;
+        paymentMethod: string;
+        txHash: string;
+        createdAt: string;
+        paidAt?: string;
+        completedAt?: string;
+      }>(`/api/v1/operator/orders/${orderId}`),
+
+    refund: (orderId: string, reason: string = '') =>
+      fetchApi<{
+        success: boolean;
+        message: string;
+        refund_amount: number;
+      }>(`/api/v1/operator/orders/${orderId}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+  },
   admin: adminApi,
 };

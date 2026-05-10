@@ -16,15 +16,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
 
 interface Order {
-  objectId: string;
-  order_no: string;
-  user_id: string;
+  id: string;
+  orderNo: string;
+  userId: string;
+  user?: string;
   username?: string;
   amount: number;
   status: string;
-  payment_method?: string;
+  type?: string;
+  paymentMethod?: string;
   createdAt: string;
-  product_name?: string;
+  productName?: string;
 }
 
 const statusColors: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
@@ -141,17 +143,17 @@ export default function AdminOrdersPage() {
                   </thead>
                   <tbody>
                     {orders.map((order) => (
-                      <tr key={order.objectId} className="border-b">
-                        <td className="p-3 text-sm font-mono">{order.order_no}</td>
-                        <td className="p-3 text-sm">{order.username || order.user_id}</td>
-                        <td className="p-3 text-sm">{order.product_name || '-'}</td>
+                      <tr key={order.id} className="border-b">
+                        <td className="p-3 text-sm font-mono">{order.orderNo}</td>
+                        <td className="p-3 text-sm">{order.user || order.username || order.userId}</td>
+                        <td className="p-3 text-sm">{order.productName || '-'}</td>
                         <td className="p-3 text-sm font-bold">¥{order.amount}</td>
                         <td className="p-3 text-sm">
                           <Badge variant={statusColors[order.status] || 'default'}>
                             {statusLabels[order.status] || order.status}
                           </Badge>
                         </td>
-                        <td className="p-3 text-sm">{order.payment_method || '-'}</td>
+                        <td className="p-3 text-sm">{order.paymentMethod || '-'}</td>
                         <td className="p-3 text-sm">
                           {new Date(order.createdAt).toLocaleString('zh-CN')}
                         </td>

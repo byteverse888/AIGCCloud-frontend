@@ -489,11 +489,22 @@ export interface Comment {
   rating?: number;
   likeCount?: number;
   parentId?: string | null;
+  replyToId?: string;  // 回复的用户ID
   createdAt: string;
 }
 
 export async function getProductComments(productId: string, page = 1, limit = 10) {
   return paginatedQuery<Comment>('Comment', { productId }, page, limit, '-createdAt');
+}
+
+// 获取顶级评论（不含回复）
+export async function getTopLevelComments(productId: string, page = 1, limit = 10) {
+  return paginatedQuery<Comment>('Comment', { where: { productId, parentId: { $exists: false } } }, page, limit, '-createdAt');
+}
+
+// 获取评论的所有回复
+export async function getCommentReplies(parentId: string, page = 1, limit = 10) {
+  return paginatedQuery<Comment>('Comment', { where: { parentId } }, page, limit, 'createdAt');
 }
 
 export async function createComment(comment: Omit<Comment, 'objectId' | 'createdAt'>) {
@@ -521,6 +532,34 @@ export async function deleteComment(commentId: string, productId: string) {
     await deleteObject('Comment', commentId);
     await parseRequest(`/classes/Product/${productId}`, 'PUT', { commentCount: { __op: 'Increment', amount: -1 } });
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+// 回复评论
+export async function replyComment(
+  productId: string,
+  userId: string,
+  userName: string,
+  content: string,
+  parentId: string,
+  replyToId: string
+) {
+  try {
+    const comment = await createObject('Comment', {
+      productId,
+      userId,
+      userName,
+      content,
+      parentId,
+      replyToId,
+      likeCount: 0,
+    });
+    await parseRequest(`/classes/Product/${productId}`, 'PUT', {
+      commentCount: { __op: 'Increment', amount: 1 },
+    });
+    return { success: true, data: comment.data };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
@@ -641,6 +680,9 @@ export interface AIIPAsset {
   views?: number;
   mockOwner?: string; // 模拟数据创建者
   tags?: string[];
+  copyright?: string;
+  license?: string;
+  assetUrl?: string;
   createdAt: string;
   updatedAt?: string;
 }

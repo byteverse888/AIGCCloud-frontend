@@ -2,12 +2,79 @@
 
 /**
  * Web3 客户端操作
- * 
+ *
  * 安全原则：
  * 1. 私钥仅在客户端生成和使用，永不发送到服务器
  * 2. 优先使用 MetaMask 等外部钱包
  * 3. 内置钱包仅作为备选方案，并提示用户安全风险
  */
+
+// ============ 全局错误处理 - 防止 MetaMask 连接错误显示在控制台 ============
+
+if (typeof window !== 'undefined') {
+  const originalError = console.error;
+  console.error = function (...args: unknown[]) {
+    const firstArg = args[0];
+    
+    // 检查字符串消息
+    if (typeof firstArg === 'string') {
+      if (
+        firstArg.includes('Failed to connect to MetaMask') ||
+        firstArg.includes('MetaMask') ||
+        firstArg.includes('eth_requestAccounts') ||
+        firstArg.includes('wallet_requestPermissions')
+      ) {
+        return;
+      }
+    }
+    
+    // 检查 Error 对象
+    if (firstArg instanceof Error) {
+      const msg = firstArg.message || '';
+      const stack = firstArg.stack || '';
+      if (
+        msg.includes('MetaMask') ||
+        msg.includes('Failed to connect') ||
+        stack.includes('inpage.js') ||
+        stack.includes('MetaMask')
+      ) {
+        return;
+      }
+    }
+    
+    originalError.apply(console, args);
+  };
+
+  // 捕获未处理的 Promise 拒绝
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    if (reason instanceof Error) {
+      const msg = reason.message || '';
+      const stack = reason.stack || '';
+      if (
+        msg.includes('MetaMask') ||
+        msg.includes('Failed to connect') ||
+        stack.includes('inpage.js') ||
+        stack.includes('MetaMask')
+      ) {
+        event.preventDefault();
+      }
+    }
+  });
+  
+  // 捕获全局错误
+  window.addEventListener('error', (event) => {
+    const msg = event.message || '';
+    const filename = event.filename || '';
+    if (
+      msg.includes('MetaMask') ||
+      msg.includes('Failed to connect') ||
+      filename.includes('inpage.js')
+    ) {
+      event.preventDefault();
+    }
+  });
+}
 
 // ============ 类型定义 ============
 
@@ -82,7 +149,7 @@ export async function getWalletInfo(): Promise<WalletInfo> {
 
   try {
     const ethereum = (window as any).ethereum;
-    const accounts = await ethereum.request({ method: 'eth_accounts' });
+    const accounts = await ethereum.request({ method: 'eth_accounts' }).catch(() => []);
     
     if (accounts && accounts.length > 0) {
       return {
@@ -113,7 +180,11 @@ export async function connectMetaMask(): Promise<WalletResult> {
 
   try {
     const ethereum = (window as any).ethereum;
-    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+    const accounts = await ethereum.request({ method: 'eth_requestAccounts' }).catch((err: any) => {
+      if (err?.code === 4001) return [];
+      console.log('[connectMetaMask] eth_requestAccounts error:', err?.message);
+      return [];
+    });
     
     if (accounts && accounts.length > 0) {
       return {
@@ -122,7 +193,7 @@ export async function connectMetaMask(): Promise<WalletResult> {
       };
     }
     
-    return { success: false, error: '连接钱包失败' };
+    return { success: false, error: '连接钱包失败，请确保钱包已解锁' };
   } catch (error: any) {
     if (error.code === 4001) {
       return { success: false, error: '用户拒绝连接钱包' };
@@ -135,47 +206,44 @@ export async function connectMetaMask(): Promise<WalletResult> {
  * 使用 MetaMask 签名消息
  */
 export async function signWithMetaMask(message: string, address: string): Promise<SignResult> {
-  console.log('[signWithMetaMask] 开始');
   if (!hasExternalWallet()) {
     return { success: false, error: '未检测到钱包' };
   }
 
   try {
     const ethereum = (window as any).ethereum;
-    
-    // 检测钱包类型
-    console.log('[signWithMetaMask] 钱包信息:', {
-      isMetaMask: ethereum.isMetaMask,
-      isOkxWallet: ethereum.isOkxWallet,
-      isCoinbaseWallet: ethereum.isCoinbaseWallet,
-      providerInfo: ethereum.providerInfo,
+
+    const accounts = await ethereum.request({ method: 'eth_requestAccounts' }).catch((err: any) => {
+      if (err?.code === 4001) return [];
+      console.log('[signWithMetaMask] eth_requestAccounts error:', err?.message);
+      return [];
     });
-    
-    // 获取账户
-    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-    console.log('[signWithMetaMask] 账户:', accounts);
-    
+
     if (!accounts || accounts.length === 0) {
       return { success: false, error: '未连接钱包账户' };
     }
-    
+
     const signerAddress = accounts[0];
-    
-    // 发起签名请求
-    console.log('[signWithMetaMask] 发起签名请求...');
-    
+
     const signature = await ethereum.request({
       method: 'personal_sign',
       params: [message, signerAddress],
+    }).catch((err: any) => {
+      if (err?.code === 4001) return null;
+      console.log('[signWithMetaMask] personal_sign error:', err?.message);
+      return null;
     });
-    
-    console.log('[signWithMetaMask] 签名成功!');
+
+    if (!signature) {
+      return { success: false, error: '用户取消操作' };
+    }
+
     return { success: true, signature };
   } catch (error: any) {
-    console.log('[signWithMetaMask] 错误:', error);
     if (error.code === 4001) {
       return { success: false, error: '用户取消操作' };
     }
+    console.log('[signWithMetaMask] error:', error?.message);
     return { success: false, error: error.message || '签名失败' };
   }
 }
@@ -446,7 +514,11 @@ export async function transferWithMetaMask(toAddress: string, amount: number): P
 
   try {
     const ethereum = (window as any).ethereum;
-    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+    const accounts = await ethereum.request({ method: 'eth_requestAccounts' }).catch((err: any) => {
+      if (err?.code === 4001) return [];
+      console.log('[transferWithMetaMask] eth_requestAccounts error:', err?.message);
+      return [];
+    });
     
     if (!accounts || accounts.length === 0) {
       return { success: false, error: '未连接钱包账户' };
@@ -455,7 +527,6 @@ export async function transferWithMetaMask(toAddress: string, amount: number): P
     const fromAddress = accounts[0];
     const { ethers } = await import('ethers');
     
-    // 转换金额为 wei（假设 amount 是整数，表示平台币，1:平台币 = 0.001 ETH）
     const valueInWei = ethers.parseEther((amount * 0.001).toString());
     
     const txHash = await ethereum.request({
@@ -465,7 +536,14 @@ export async function transferWithMetaMask(toAddress: string, amount: number): P
         to: toAddress,
         value: '0x' + valueInWei.toString(16),
       }],
+    }).catch((err: any) => {
+      if (err?.code === 4001) return null;
+      throw err;
     });
+    
+    if (!txHash) {
+      return { success: false, error: '用户取消交易' };
+    }
     
     return { success: true, txHash };
   } catch (error: any) {

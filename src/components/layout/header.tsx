@@ -31,6 +31,7 @@ import {
   Crown,
   Shield,
   Megaphone,
+  Search,
 } from 'lucide-react';
 
 export function Header() {
@@ -66,6 +67,13 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 md:px-6">
+      {/* 搜索 */}
+      <Link href="/market">
+        <Button variant="ghost" size="icon">
+          <Search className="h-5 w-5" />
+        </Button>
+      </Link>
+
       {/* 会员订阅 */}
       <Link href="/profile/membership">
         <Button variant="ghost" size="icon" className="relative">

@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/store';
 import { getUserAIIPAssets, updateAIIPAssetStatus, deleteAIIPAsset, initUserAIIPAssets, clearUserAIIPAssets, updateObject, type AIIPAsset } from '@/lib/parse-actions';
+import { assetsApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 const PAGE_SIZE = 20;
@@ -86,7 +87,14 @@ export default function AssetsPage() {
   const [page, setPage] = useState(1);
   const [previewAsset, setPreviewAsset] = useState<AIIPAsset | null>(null);
   const [editAsset, setEditAsset] = useState<AIIPAsset | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', description: '', price: 0, category: 'image' });
+  const [editForm, setEditForm] = useState({ 
+    name: '', 
+    description: '', 
+    price: 0, 
+    category: 'image',
+    copyright: '',
+    license: 'CC-BY-NC-ND',
+  });
   const { user } = useAuthStore();
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -144,12 +152,41 @@ export default function AssetsPage() {
   };
 
   const handleEdit = (asset: AIIPAsset) => {
-    setEditForm({ name: asset.name, description: asset.description || '', price: asset.price, category: asset.category });
+    setEditForm({ 
+      name: asset.name, 
+      description: asset.description || '', 
+      price: asset.price || 0, 
+      category: asset.category,
+      copyright: asset.copyright || '',
+      license: asset.license || 'CC-BY-NC-ND',
+    });
     setEditAsset(asset);
   };
 
   const handleSaveEdit = async () => {
     if (!editAsset) return;
+    
+    // 先尝试用新API编辑Product
+    if (editAsset.status !== 'draft') {
+      // 草稿才能用新API
+      const result = await assetsApi.updateAsset(editAsset.objectId, {
+        name: editForm.name,
+        description: editForm.description,
+        category: editForm.category,
+        coverKey: editAsset.cover,
+        copyright: editForm.copyright,
+        license: editForm.license,
+        tags: [],
+      });
+      if (result.success) {
+        toast.success('保存成功');
+        setEditAsset(null);
+        fetchProducts();
+        return;
+      }
+    }
+    
+    // 否则用Parse更新AIIPAsset
     const result = await updateObject('AIIPAsset', editAsset.objectId, editForm);
     if (result.success) {
       toast.success('保存成功');
@@ -399,7 +436,7 @@ export default function AssetsPage() {
 
       {/* 编辑弹窗 */}
       <Dialog open={!!editAsset} onOpenChange={() => setEditAsset(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>编辑资产</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -414,6 +451,7 @@ export default function AssetsPage() {
                   <SelectItem value="image">图片</SelectItem>
                   <SelectItem value="audio">音频</SelectItem>
                   <SelectItem value="video">视频</SelectItem>
+                  <SelectItem value="model">模型</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -424,6 +462,24 @@ export default function AssetsPage() {
             <div className="space-y-2">
               <Label>描述</Label>
               <Textarea value={editForm.description} onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>版权地址 (Web3)</Label>
+              <Input value={editForm.copyright} onChange={(e) => setEditForm(f => ({ ...f, copyright: e.target.value }))} placeholder="0x..." />
+            </div>
+            <div className="space-y-2">
+              <Label>许可证</Label>
+              <Select value={editForm.license} onValueChange={(v) => setEditForm(f => ({ ...f, license: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CC-BY">CC BY (署名)</SelectItem>
+                  <SelectItem value="CC-BY-NC">CC BY-NC (非商业)</SelectItem>
+                  <SelectItem value="CC-BY-ND">CC BY-ND (禁止改作)</SelectItem>
+                  <SelectItem value="CC-BY-NC-ND">CC BY-NC-ND (非商业禁止改作)</SelectItem>
+                  <SelectItem value="CC-BY-SA">CC BY-SA (相同方式共享)</SelectItem>
+                  <SelectItem value="ALL-RIGHTS">版权所有</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setEditAsset(null)}>取消</Button>

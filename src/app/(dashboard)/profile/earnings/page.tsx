@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuthStore } from '@/store';
-import { getUserEarnings, getUserEarningStats, createWithdrawRequest, EarningRecord, getUserProducts } from '@/lib/parse-actions';
+import { getUserEarnings, getUserEarningStats, EarningRecord, getUserProducts } from '@/lib/parse-actions';
+import { userApi } from '@/lib/api';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -145,12 +146,12 @@ export default function EarningsPage() {
 
     setIsSubmitting(true);
     try {
-      const result = await createWithdrawRequest(user.objectId, {
+      const result = await userApi.withdraw({
         amount,
         method: withdrawMethod,
         account: withdrawAccount,
-        accountName: withdrawAccountName,
-        bankName: withdrawMethod === 'bank' ? withdrawBankName : undefined,
+        account_name: withdrawAccountName,
+        bank_name: withdrawMethod === 'bank' ? withdrawBankName : undefined,
       });
 
       if (result.success) {

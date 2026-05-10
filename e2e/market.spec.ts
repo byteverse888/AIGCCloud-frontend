@@ -10,7 +10,7 @@ test.describe('商城页面', () => {
 
   test('商城页面正确加载', async ({ page }) => {
     // 检查页面标题或标识
-    await expect(page.getByText(/商城|市场/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /商城|市场/ })).toBeVisible();
   });
 
   test('商品列表正确显示', async ({ page }) => {
