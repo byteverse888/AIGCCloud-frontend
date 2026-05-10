@@ -66,9 +66,17 @@ const statusLabels: Record<string, string> = {
   draft: '草稿',
   pending: '待审核',
   approved: '已上架',
-  rejected: '已拒绝',
+  rejected: '已驳回',
   offline: '已下架',
 };
+
+// 取驳回/下架原因的统一文案（优先 offlineReason，回落 reviewNote）
+function getRejectReason(p: AIIPAsset): string | null {
+  if (p.status !== 'rejected' && p.status !== 'offline') return null;
+  const reason = p.offlineReason || p.reviewNote;
+  if (reason && reason.trim()) return reason;
+  return p.status === 'rejected' ? '审核未通过' : '商品已下架';
+}
 
 const typeIcons: Record<string, typeof Image> = {
   image: Image,
@@ -310,7 +318,8 @@ export default function AssetsPage() {
               <SelectItem value="draft">草稿</SelectItem>
               <SelectItem value="pending">待审核</SelectItem>
               <SelectItem value="approved">已上架</SelectItem>
-              <SelectItem value="rejected">已拒绝</SelectItem>
+              <SelectItem value="rejected">已驳回</SelectItem>
+              <SelectItem value="offline">已下架</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex rounded-md border">
@@ -331,6 +340,7 @@ export default function AssetsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.map((product) => {
             const TypeIcon = typeIcons[product.category] || Image;
+            const rejectReason = getRejectReason(product);
             return (
               <Card key={product.objectId} className="overflow-hidden">
                 <div className="relative aspect-square bg-muted">
@@ -352,6 +362,12 @@ export default function AssetsPage() {
                     <span>¥{product.price}</span>
                     <span>{product.views || 0} 浏览</span>
                   </div>
+                  {rejectReason && (
+                    <div className="mt-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive" title={rejectReason}>
+                      <span className="font-medium">{product.status === 'rejected' ? '驳回原因：' : '下架原因：'}</span>
+                      <span className="line-clamp-2">{rejectReason}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -374,11 +390,21 @@ export default function AssetsPage() {
               <tbody>
                 {products.map((product) => {
                   const TypeIcon = typeIcons[product.category] || Image;
+                  const rejectReason = getRejectReason(product);
                   return (
                     <tr key={product.objectId} className="border-b last:border-0">
                       <td className="p-4"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded bg-muted"><TypeIcon className="h-5 w-5 text-muted-foreground" /></div><span className="font-medium">{product.name}</span></div></td>
                       <td className="p-4">{product.category}</td>
-                      <td className="p-4"><Badge variant={statusColors[product.status] || 'default'}>{statusLabels[product.status] || product.status}</Badge></td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={statusColors[product.status] || 'default'} className="w-fit">{statusLabels[product.status] || product.status}</Badge>
+                          {rejectReason && (
+                            <span className="max-w-[240px] truncate text-xs text-destructive" title={rejectReason}>
+                              {product.status === 'rejected' ? '驳回：' : '下架：'}{rejectReason}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-4">¥{product.price}</td>
                       <td className="p-4">{product.views || 0}</td>
                       <td className="p-4">
@@ -428,6 +454,23 @@ export default function AssetsPage() {
                 <div>状态：<Badge variant={statusColors[previewAsset.status] || 'default'}>{statusLabels[previewAsset.status]}</Badge></div>
                 <div>浏览量：{previewAsset.views || 0}</div>
               </div>
+              {(() => {
+                const reason = getRejectReason(previewAsset);
+                if (!reason) return null;
+                return (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                    <div className="mb-1 font-medium text-destructive">
+                      {previewAsset.status === 'rejected' ? '审核驳回原因' : '下架原因'}
+                    </div>
+                    <div className="whitespace-pre-wrap text-destructive/90">{reason}</div>
+                    {previewAsset.reviewedAt && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        审核时间：{new Date(previewAsset.reviewedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {previewAsset.description && <p className="text-sm text-muted-foreground">{previewAsset.description}</p>}
             </div>
           )}

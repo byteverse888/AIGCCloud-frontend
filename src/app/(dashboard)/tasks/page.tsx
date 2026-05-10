@@ -37,6 +37,8 @@ import {
   ExternalLink,
   ImagePlus,
   Coins,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '@/store';
 import { getUserAITasks, deleteObject, type AITask } from '@/lib/parse-actions';
@@ -65,11 +67,13 @@ export default function AITasksPage() {
   const [tasks, setTasks] = useState<AITask[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedTask, setSelectedTask] = useState<AITask | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { user } = useAuthStore();
+  const pageSize = 10;
 
   const fetchTasks = useCallback(async () => {
     if (!user) return;
@@ -77,6 +81,8 @@ export default function AITasksPage() {
     const result = await getUserAITasks(user.objectId, {
       type: typeFilter !== 'all' ? typeFilter : undefined,
       status: statusFilter !== 'all' ? parseInt(statusFilter) : undefined,
+      page,
+      limit: pageSize,
     });
     if (result.success) {
       setTasks(result.data);
@@ -85,11 +91,18 @@ export default function AITasksPage() {
       toast.error(result.error || '加载失败');
     }
     setLoading(false);
-  }, [user, typeFilter, statusFilter]);
+  }, [user, typeFilter, statusFilter, page]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // 切换筛选回到第一页
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, statusFilter]);
+
+  const totalPages = Math.ceil(total / pageSize);
 
   const handleDelete = async (taskId: string) => {
     if (!confirm('确定要删除这个任务吗？')) return;
@@ -124,7 +137,7 @@ export default function AITasksPage() {
   };
 
   const stats = {
-    total: tasks.length,
+    total: total,
     pending: tasks.filter((t) => t.status === 0).length,
     processing: tasks.filter((t) => t.status === 1).length,
     completed: tasks.filter((t) => t.status === 2 || t.status === 4).length,
@@ -333,6 +346,35 @@ export default function AITasksPage() {
               </Card>
             );
           })}
+
+          {/* 分页 */}
+          {total > 0 && (
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-muted-foreground">
+                共 {total} 条记录，第 {page}/{totalPages || 1} 页
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  上一页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  下一页
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

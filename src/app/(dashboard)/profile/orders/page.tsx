@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ShoppingBag, ArrowLeft, Package, CheckCircle, Clock, Loader2, CreditCard, AlertCircle, XCircle, Copy, ExternalLink } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Package, CheckCircle, Clock, Loader2, CreditCard, AlertCircle, XCircle, Copy, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuthStore } from '@/store';
+import { useCartStore } from '@/store';
 import { getUserOrders, Order, verifyTransferAndCompleteOrder, cancelOrder } from '@/lib/parse-actions';
+import { copyText } from '@/lib/utils';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -28,6 +30,9 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [verifyingOrderId, setVerifyingOrderId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 10;
   
   // txHash 详情对话框
   const [txHashDialogOpen, setTxHashDialogOpen] = useState(false);
@@ -48,9 +53,10 @@ export default function OrdersPage() {
   };
 
   // 复制txHash
-  const copyTxHash = (txHash: string) => {
-    navigator.clipboard.writeText(txHash);
-    toast.success('已复制到剪贴板');
+  const copyTxHash = async (txHash: string) => {
+    const ok = await copyText(txHash);
+    if (ok) toast.success('已复制到剪贴板');
+    else toast.error('复制失败，请手动复制');
   };
 
   // 格式化时间显示（包含日期和时分）
@@ -80,9 +86,14 @@ export default function OrdersPage() {
       const result = await verifyTransferAndCompleteOrder(order.objectId, txHash);
       if (result.success) {
         toast.success('订单已完成！');
+        // 同步刷新右上角购物车角标（后端已移除该商品）
+        void useCartStore.getState().fetchCart();
         // 刷新订单列表
-        const refreshResult = await getUserOrders(user!.objectId, { status: activeTab === 'all' ? undefined : activeTab });
-        if (refreshResult.success) setOrders(refreshResult.data);
+        const refreshResult = await getUserOrders(user!.objectId, { status: activeTab === 'all' ? undefined : activeTab, page, limit: pageSize });
+        if (refreshResult.success) {
+          setOrders(refreshResult.data);
+          setTotal(refreshResult.total || 0);
+        }
       } else {
         toast.error(result.error || '验证失败');
       }
@@ -96,8 +107,11 @@ export default function OrdersPage() {
     const result = await cancelOrder(orderId);
     if (result.success) {
       toast.success('订单已取消');
-      const refreshResult = await getUserOrders(user!.objectId, { status: activeTab === 'all' ? undefined : activeTab });
-      if (refreshResult.success) setOrders(refreshResult.data);
+      const refreshResult = await getUserOrders(user!.objectId, { status: activeTab === 'all' ? undefined : activeTab, page, limit: pageSize });
+      if (refreshResult.success) {
+        setOrders(refreshResult.data);
+        setTotal(refreshResult.total || 0);
+      }
     } else {
       toast.error('取消失败');
     }
@@ -110,10 +124,11 @@ export default function OrdersPage() {
       setLoading(true);
       try {
         const statusFilter = activeTab === 'all' ? undefined : activeTab;
-        const result = await getUserOrders(user.objectId, { status: statusFilter });
+        const result = await getUserOrders(user.objectId, { status: statusFilter, page, limit: pageSize });
         if (result.success) {
           console.log('[Orders] 加载订单数据:', result.data.map(o => ({ orderNo: o.orderNo, status: o.status, txHash: o.txHash })));
           setOrders(result.data);
+          setTotal(result.total || 0);
         }
       } catch (error) {
         toast.error('加载订单失败');
@@ -122,12 +137,17 @@ export default function OrdersPage() {
       }
     }
     loadOrders();
-  }, [user?.objectId, activeTab]);
+  }, [user?.objectId, activeTab, page]);
 
-  const renderOrderList = (filterStatus?: string) => {
-    const filteredOrders = filterStatus 
-      ? orders.filter(o => o.status === filterStatus)
-      : orders;
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  const renderOrderList = (_filterStatus?: string) => {
+    // 服务端已按 activeTab 过滤，直接使用 orders
+    const filteredOrders = orders;
 
     if (loading) {
       return (
@@ -253,7 +273,7 @@ export default function OrdersPage() {
             <CardDescription>查看和管理您的订单</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="all" onValueChange={setActiveTab}>
+            <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
                 <TabsTrigger value="all">全部订单</TabsTrigger>
                 <TabsTrigger value="pending">待支付</TabsTrigger>
@@ -287,6 +307,34 @@ export default function OrdersPage() {
                 {renderOrderList('cancelled')}
               </TabsContent>
             </Tabs>
+
+            {!loading && total > 0 && (
+              <div className="mt-6 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  共 {total} 条记录，第 {page}/{totalPages || 1} 页
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    上一页
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    下一页
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

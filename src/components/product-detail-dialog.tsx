@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { type Product } from '@/lib/parse-actions';
 import { rateProduct, getUserRating } from '@/lib/parse-actions';
-import { cn } from '@/lib/utils';
+import { cn, copyText } from '@/lib/utils';
 import { StarRating } from '@/components/ui/star-rating';
 import { useAuthStore } from '@/store';
 import toast from 'react-hot-toast';
@@ -340,8 +340,10 @@ export function ProductDetailDialog({
             </Button>
             <Button
               variant="outline"
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.origin + '/market?id=' + product.objectId);
+              onClick={async () => {
+                const ok = await copyText(window.location.origin + '/market?id=' + product.objectId);
+                if (ok) toast.success('链接已复制');
+                else toast.error('复制失败，请手动复制');
               }}
             >
               <Share2 className="h-4 w-4" />

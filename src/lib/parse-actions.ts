@@ -683,6 +683,11 @@ export interface AIIPAsset {
   copyright?: string;
   license?: string;
   assetUrl?: string;
+  // 审核相关：用于展示驳回/下架原因与审核时间
+  reviewNote?: string;
+  offlineReason?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
   createdAt: string;
   updatedAt?: string;
 }

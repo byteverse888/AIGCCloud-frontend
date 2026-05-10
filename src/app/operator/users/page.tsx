@@ -25,13 +25,6 @@ import { adminApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { CopyableCell } from '@/components/admin/copyable-cell';
 
-const roleLabels: Record<string, string> = {
-  user: '普通用户',
-  operator: '运营用户',
-  channel: '渠道用户',
-  admin: '管理员',
-};
-
 const statusLabels: Record<string, string> = {
   active: '正常',
   inactive: '未激活',
@@ -42,6 +35,13 @@ const statusColors: Record<string, 'success' | 'default' | 'destructive'> = {
   active: 'success',
   inactive: 'default',
   banned: 'destructive',
+};
+
+const roleLabels: Record<string, string> = {
+  user: '普通用户',
+  operator: '运营用户',
+  channel: '渠道用户',
+  admin: '管理员',
 };
 
 interface UserRow {
@@ -62,7 +62,7 @@ interface UserRow {
   updatedAt?: string;
 }
 
-export default function AdminUsersPage() {
+export default function OperatorUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -86,12 +86,12 @@ export default function AdminUsersPage() {
 
   const [createForm, setCreateForm] = useState({
     username: '',
-    password: 'Admin@123456',
+    password: 'User@123456',
     email: '',
     phone: '',
     role: 'user',
     level: 1,
-    active: true,  // 默认激活
+    active: true,
   });
 
   const [editForm, setEditForm] = useState({
@@ -99,13 +99,14 @@ export default function AdminUsersPage() {
     email: '',
     phone: '',
     level: 1,
-    status: 'active',  // 激活状态
+    status: 'active',
   });
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await adminApi.listUsers({ page, limit });
+      // 后端已强制 operator 只能看 role=user
+      const result = await adminApi.listUsers({ page, limit, role: 'user' });
       const rows = (result.data || []).map((u: Record<string, unknown>) => ({
         objectId: u.objectId as string,
         username: (u.username as string) || '',
@@ -148,7 +149,6 @@ export default function AdminUsersPage() {
 
   const handleResetPassword = async () => {
     if (!selectedUser) return;
-    // 如果填写了新密码，必须两次一致
     if (newPassword) {
       if (newPassword.length < 6) {
         toast.error('新密码至少6位');
@@ -229,10 +229,11 @@ export default function AdminUsersPage() {
     }
     setCreateLoading(true);
     try {
-      await adminApi.createUser(createForm);
+      // role 强制 user，运营端不提供其他角色选项
+      await adminApi.createUser({ ...createForm, role: 'user' });
       toast.success('用户创建成功');
       setCreateUserOpen(false);
-      setCreateForm({ username: '', password: 'Admin@123456', email: '', phone: '', role: 'user', level: 1, active: true });
+      setCreateForm({ username: '', password: 'User@123456', email: '', phone: '', role: 'user', level: 1, active: true });
       fetchUsers();
     } catch (e: unknown) {
       const err = e as { detail?: string };
@@ -293,7 +294,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">用户管理</h1>
-        <p className="text-muted-foreground">管理平台用户账号</p>
+        <p className="text-muted-foreground">管理普通用户账号（不含管理员和运营管理员）</p>
       </div>
 
       <Card>
@@ -330,7 +331,6 @@ export default function AdminUsersPage() {
                     <tr className="border-b bg-muted/50">
                       <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[180px]">用户名</th>
                       <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[220px]">邮箱</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[90px]">角色</th>
                       <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[70px]">等级</th>
                       <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[80px]">会员</th>
                       <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[90px]">状态</th>
@@ -347,7 +347,6 @@ export default function AdminUsersPage() {
                         <td className="px-3 py-3 text-sm">
                           <CopyableCell value={user.email} maxWidth="max-w-[200px]" />
                         </td>
-                        <td className="px-3 py-3 text-sm whitespace-nowrap">{roleLabels[user.role] || user.role}</td>
                         <td className="px-3 py-3 text-sm whitespace-nowrap">Lv.{user.level}</td>
                         <td className="px-3 py-3 text-sm whitespace-nowrap">
                           <Badge variant={user.memberLevel !== 'normal' ? 'default' : 'outline'}>
@@ -407,9 +406,7 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  共 {total} 条记录
-                </p>
+                <p className="text-sm text-muted-foreground">共 {total} 条记录</p>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -444,9 +441,7 @@ export default function AdminUsersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>重置用户密码</DialogTitle>
-            <DialogDescription>
-              为用户 {selectedUser?.username} 重置密码
-            </DialogDescription>
+            <DialogDescription>为用户 {selectedUser?.username} 重置密码</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
@@ -483,9 +478,7 @@ export default function AdminUsersPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetPasswordOpen(false)}>
-              关闭
-            </Button>
+            <Button variant="outline" onClick={() => setResetPasswordOpen(false)}>关闭</Button>
             {!resetResult && (
               <Button onClick={handleResetPassword} disabled={actionLoading || (newPassword !== '' && newPassword !== confirmPassword)}>
                 {actionLoading ? '重置中...' : '确认重置'}
@@ -500,9 +493,7 @@ export default function AdminUsersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>为用户充值金币</DialogTitle>
-            <DialogDescription>
-              为用户 {selectedUser?.username} 充值金币
-            </DialogDescription>
+            <DialogDescription>为用户 {selectedUser?.username} 充值金币</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
@@ -529,9 +520,7 @@ export default function AdminUsersPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRechargeOpen(false)}>
-              关闭
-            </Button>
+            <Button variant="outline" onClick={() => setRechargeOpen(false)}>关闭</Button>
             {!rechargeResult && (
               <Button onClick={handleRecharge} disabled={actionLoading}>
                 {actionLoading ? '充值中...' : '确认充值'}
@@ -546,19 +535,12 @@ export default function AdminUsersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>编辑用户</DialogTitle>
-            <DialogDescription>
-              修改用户 {selectedUser?.username} 的信息
-            </DialogDescription>
+            <DialogDescription>修改用户 {selectedUser?.username} 的信息</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium">用户名</label>
-              <Input
-                value={editForm.username}
-                onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                className="mt-1"
-                disabled
-              />
+              <Input value={editForm.username} className="mt-1" disabled />
             </div>
             <div>
               <label className="text-sm font-medium">邮箱</label>
@@ -601,9 +583,7 @@ export default function AdminUsersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditUserOpen(false)}>
-              取消
-            </Button>
+            <Button variant="outline" onClick={() => setEditUserOpen(false)}>取消</Button>
             <Button onClick={handleEditUser} disabled={actionLoading}>
               {actionLoading ? '保存中...' : '保存'}
             </Button>
@@ -615,10 +595,8 @@ export default function AdminUsersPage() {
       <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>新建用户</DialogTitle>
-            <DialogDescription>
-              创建一个新的用户账号。默认创建后立即激活，可手动关闭。
-            </DialogDescription>
+            <DialogTitle>新建普通用户</DialogTitle>
+            <DialogDescription>运营管理员仅可创建普通用户，创建后默认立即激活。</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -660,19 +638,6 @@ export default function AdminUsersPage() {
                 onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
                 placeholder="选填"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-role">角色 *</Label>
-              <select
-                id="create-role"
-                value={createForm.role}
-                onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-                className="w-full h-10 px-3 border rounded-md bg-background text-sm"
-              >
-                <option value="user">普通用户</option>
-                <option value="operator">运营用户</option>
-                <option value="admin">管理员</option>
-              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="create-level">等级</Label>

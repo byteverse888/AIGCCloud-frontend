@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Trash2, Copy, Loader2 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { copyText } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 interface Coupon {
@@ -155,7 +156,7 @@ export default function OperatorCouponsPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-3">
                       <code className="px-2 py-1 rounded bg-muted font-mono text-sm">{coupon.code}</code>
-                      <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(coupon.code); toast.success('已复制'); }}><Copy className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="sm" onClick={async () => { const ok = await copyText(coupon.code); if (ok) toast.success('已复制'); else toast.error('复制失败，请手动复制'); }}><Copy className="h-3 w-3" /></Button>
                       {getStatusBadge(coupon.status)}
                     </div>
                     <div className="text-lg font-bold">{getTypeLabel(coupon.type, coupon.value, coupon.minAmount)}</div>

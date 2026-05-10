@@ -83,7 +83,7 @@ export default function AdminSettingsPage() {
           <TabsTrigger value="notification"><Bell className="mr-2 h-4 w-4" />通知设置</TabsTrigger>
           <TabsTrigger value="security"><Shield className="mr-2 h-4 w-4" />安全设置</TabsTrigger>
           <TabsTrigger value="general"><Settings2 className="mr-2 h-4 w-4" />通用设置</TabsTrigger>
-          <TabsTrigger value="logo"><Image className="mr-2 h-4 w-4" />Logo设置</TabsTrigger>
+          <TabsTrigger value="logo"><Image className="mr-2 h-4 w-4" />平台设置</TabsTrigger>
           <TabsTrigger value="license"><Key className="mr-2 h-4 w-4" />License</TabsTrigger>
           <TabsTrigger value="email"><Mail className="mr-2 h-4 w-4" />邮箱设置</TabsTrigger>
           <TabsTrigger value="credits"><Coins className="mr-2 h-4 w-4" />积分设置</TabsTrigger>
@@ -256,32 +256,113 @@ export default function AdminSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Logo设置 */}
+        {/* 平台设置（Logo / 品牌 / 页脚 / 备案） */}
         <TabsContent value="logo" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>平台Logo设置</CardTitle>
-              <CardDescription>配置平台Logo和品牌标识</CardDescription>
+              <CardTitle>平台设置</CardTitle>
+              <CardDescription>配置平台品牌标识、产品名称、页脚与备案信息</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>主Logo URL（浅色模式）</Label>
-                  <Input value={getValue('logo', 'lightLogo')} onChange={e => updateField('logo', 'lightLogo', e.target.value)} placeholder="https://..." />
-                  {getValue('logo', 'lightLogo') && <img src={getValue('logo', 'lightLogo')} alt="light logo" className="h-12 mt-2 object-contain" />}
+              <div>
+                <h3 className="mb-4 text-lg font-medium">品牌标识</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>产品名称（左上角显示）</Label>
+                    <Input value={getValue('logo', 'productName', '巴特星球')} onChange={e => updateField('logo', 'productName', e.target.value)} placeholder="巴特星球" />
+                    <p className="text-xs text-muted-foreground">主站侧栏、管理后台、运营后台左上角的显示名称</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>网站标题 slogan（可选）</Label>
+                    <Input value={getValue('logo', 'slogan')} onChange={e => updateField('logo', 'slogan', e.target.value)} placeholder="如：下一代 AI 创作平台" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>主Logo URL（深色模式）</Label>
-                  <Input value={getValue('logo', 'darkLogo')} onChange={e => updateField('logo', 'darkLogo', e.target.value)} placeholder="https://..." />
-                  {getValue('logo', 'darkLogo') && <img src={getValue('logo', 'darkLogo')} alt="dark logo" className="h-12 mt-2 object-contain" />}
+              </div>
+              <Separator />
+              <div>
+                <h3 className="mb-4 text-lg font-medium">Logo 与图片</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>主Logo URL（浅色模式）</Label>
+                    <Input value={getValue('logo', 'lightLogo')} onChange={e => updateField('logo', 'lightLogo', e.target.value)} placeholder="https://..." />
+                    {getValue('logo', 'lightLogo') && <img src={getValue('logo', 'lightLogo')} alt="light logo" className="h-12 mt-2 object-contain" />}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>主Logo URL（深色模式）</Label>
+                    <Input value={getValue('logo', 'darkLogo')} onChange={e => updateField('logo', 'darkLogo', e.target.value)} placeholder="https://..." />
+                    {getValue('logo', 'darkLogo') && <img src={getValue('logo', 'darkLogo')} alt="dark logo" className="h-12 mt-2 object-contain" />}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Favicon URL</Label>
+                    <Input value={getValue('logo', 'favicon')} onChange={e => updateField('logo', 'favicon', e.target.value)} placeholder="https://..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>登录页背景图 URL</Label>
+                    <Input value={getValue('logo', 'loginBg')} onChange={e => updateField('logo', 'loginBg', e.target.value)} placeholder="https://..." />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Favicon URL</Label>
-                  <Input value={getValue('logo', 'favicon')} onChange={e => updateField('logo', 'favicon', e.target.value)} placeholder="https://..." />
+              </div>
+              <Separator />
+              <div>
+                <h3 className="mb-4 text-lg font-medium">联系方式</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>客服电话</Label>
+                    <Input value={getValue('logo', 'contactPhone')} onChange={e => updateField('logo', 'contactPhone', e.target.value)} placeholder="400-xxx-xxxx" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>客服邮箱</Label>
+                    <Input value={getValue('logo', 'supportEmail')} onChange={e => updateField('logo', 'supportEmail', e.target.value)} placeholder="support@example.com" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>公司地址</Label>
+                    <Input value={getValue('logo', 'companyAddress')} onChange={e => updateField('logo', 'companyAddress', e.target.value)} placeholder="如：北京市..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>公司全称</Label>
+                    <Input value={getValue('logo', 'companyName')} onChange={e => updateField('logo', 'companyName', e.target.value)} placeholder="XX 科技有限公司" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>登录页背景图 URL</Label>
-                  <Input value={getValue('logo', 'loginBg')} onChange={e => updateField('logo', 'loginBg', e.target.value)} placeholder="https://..." />
+              </div>
+              <Separator />
+              <div>
+                <h3 className="mb-4 text-lg font-medium">备案信息</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>ICP 备案号</Label>
+                    <Input value={getValue('logo', 'icp') || getValue('general', 'icp')} onChange={e => updateField('logo', 'icp', e.target.value)} placeholder="京ICP备xxxxxxxx号" />
+                    <p className="text-xs text-muted-foreground">显示于页脚，如同时在“通用设置”配置将以本处为优先</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>公安备案号</Label>
+                    <Input value={getValue('logo', 'policeICP')} onChange={e => updateField('logo', 'policeICP', e.target.value)} placeholder="京公网安备 110xxxxxxxxxxx 号" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>经营许可证</Label>
+                    <Input value={getValue('logo', 'businessLicense')} onChange={e => updateField('logo', 'businessLicense', e.target.value)} placeholder="如：增值电信业务经营许可证号" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>影视由 / 网文证等其他资质</Label>
+                    <Input value={getValue('logo', 'otherLicense')} onChange={e => updateField('logo', 'otherLicense', e.target.value)} placeholder="可选填写" />
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div>
+                <h3 className="mb-4 text-lg font-medium">页脚信息</h3>
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <Label>版权声明</Label>
+                    <Input value={getValue('logo', 'footerCopyright')} onChange={e => updateField('logo', 'footerCopyright', e.target.value)} placeholder="© 2025 巴特星球. All Rights Reserved." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>页脚追加文案（可选）</Label>
+                    <Input value={getValue('logo', 'footerText')} onChange={e => updateField('logo', 'footerText', e.target.value)} placeholder="如：本网站由 XX 提供技术支持" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>友情链接（JSON 数组，可选）</Label>
+                    <Input value={getValue('logo', 'friendLinks')} onChange={e => updateField('logo', 'friendLinks', e.target.value)} placeholder='[{"name":"官网","url":"https://..."}]' />
+                  </div>
                 </div>
               </div>
               <Button onClick={() => handleSave('logo')} disabled={saving}>

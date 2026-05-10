@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store';
 import { ShareButton } from '@/components/share-dialog';
 import { Gift, Copy, Users, CheckCircle, Coins } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { copyText } from '@/lib/utils';
 
 export default function InvitePage() {
   const { user } = useAuthStore();
@@ -15,9 +16,10 @@ export default function InvitePage() {
   const shareTitle = '我在巴特星球AIGC平台创作，邀请你一起来体验AI创作的魔力！';
   const shareDescription = '注册即送100金币，快来加入吧！';
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    toast.success('邀请链接已复制');
+  const handleCopy = async () => {
+    const ok = await copyText(inviteLink);
+    if (ok) toast.success('邀请链接已复制');
+    else toast.error('复制失败，请手动复制');
   };
 
   return (

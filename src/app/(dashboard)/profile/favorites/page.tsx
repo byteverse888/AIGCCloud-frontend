@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Bookmark, ArrowLeft, ShoppingCart, Loader2 } from 'lucide-react';
+import { Bookmark, ArrowLeft, ShoppingCart, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,23 +28,27 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
   const { user } = useAuthStore();
   const { addItem } = useCartStore();
 
   const fetchFavorites = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const result = await getUserFavorites(user.objectId);
+    const result = await getUserFavorites(user.objectId, page, pageSize);
     if (result.success) {
       setFavorites(result.data as FavoriteItem[]);
       setTotal(result.total);
     }
     setLoading(false);
-  }, [user]);
+  }, [user, page]);
 
   useEffect(() => {
     fetchFavorites();
   }, [fetchFavorites]);
+
+  const totalPages = Math.ceil(total / pageSize);
 
   const handleRemove = async (productId: string) => {
     if (!user) return;
@@ -55,15 +59,22 @@ export default function FavoritesPage() {
     }
   };
 
-  const handleAddToCart = (item: FavoriteItem) => {
+  const handleAddToCart = async (item: FavoriteItem) => {
     if (!item.product) return;
-    addItem({
-      productId: item.productId,
-      name: item.product.name,
-      price: item.product.price,
-      quantity: 1,
-    });
-    toast.success('已加入购物车');
+    if (!user?.objectId) {
+      toast.error('请先登录');
+      return;
+    }
+    try {
+      await addItem({
+        productId: item.productId,
+        name: item.product.name,
+        price: item.product.price,
+      });
+      toast.success('已加入购物车');
+    } catch (e: any) {
+      toast.error(e?.message || '加入购物车失败');
+    }
   };
   return (
     <div className="space-y-6">
@@ -101,6 +112,7 @@ export default function FavoritesPage() {
                 </Button>
               </div>
             ) : (
+              <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {favorites.map((item) => (
                   <Card key={item.objectId} className="overflow-hidden">
@@ -144,6 +156,35 @@ export default function FavoritesPage() {
                   </Card>
                 ))}
               </div>
+
+              {total > 0 && (
+                <div className="mt-6 flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    共 {total} 条记录，第 {page}/{totalPages || 1} 页
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => p - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      上一页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      下一页
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </CardContent>
         </Card>

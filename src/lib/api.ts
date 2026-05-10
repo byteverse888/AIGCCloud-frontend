@@ -93,11 +93,46 @@ export const authApi = {
       body: JSON.stringify({ phone, code }),
     }),
 
-  login: (username: string, password: string) =>
+  login: (
+    username: string,
+    password: string,
+    captcha?: { captcha_id: string; captcha_text: string },
+  ) =>
     fetchApi('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({
+        username,
+        password,
+        captcha_id: captcha?.captcha_id,
+        captcha_text: captcha?.captcha_text,
+      }),
     }),
+
+  // 获取图形验证码
+  getCaptcha: () =>
+    fetchApi<{ captcha_id: string; image: string }>('/api/v1/auth/captcha'),
+
+  // 站点公开配置（不需鉴权）
+  getPublicConfig: () =>
+    fetchApi<{
+      success: boolean;
+      data: {
+        siteName: string;
+        productName: string;
+        siteUrl: string;
+        contactEmail: string;
+        contactPhone: string;
+        icp: string;
+        policeICP: string;
+        footerText: string;
+        footerCopyright: string;
+        lightLogo: string;
+        darkLogo: string;
+        favicon: string;
+        loginBg: string;
+        loginCaptcha: boolean;
+      };
+    }>('/api/v1/auth/public-config'),
 
   // Web3 认证
   web3Init: (address: string) =>
@@ -183,7 +218,11 @@ export const authApi = {
     }>(`/api/v1/auth/email/activate?token=${token}`),
 
   // 邮箱登录
-  emailLogin: (email: string, password: string) =>
+  emailLogin: (
+    email: string,
+    password: string,
+    captcha?: { captcha_id: string; captcha_text: string },
+  ) =>
     fetchApi<{
       success: boolean;
       token: string;
@@ -206,7 +245,12 @@ export const authApi = {
       message: string;
     }>('/api/v1/auth/email/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        captcha_id: captcha?.captcha_id,
+        captcha_text: captcha?.captcha_text,
+      }),
     }),
 };
 
@@ -531,12 +575,13 @@ export const adminApi = {
     }>('/api/v1/admin/stats/revenue'),
 
   // 管理员订单列表
-  listOrders: (params: { page?: number; limit?: number; status?: string; search?: string } = {}) => {
+  listOrders: (params: { page?: number; limit?: number; status?: string; search?: string; buyerUserId?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
     if (params.limit) qs.set('limit', String(params.limit));
     if (params.status) qs.set('status', params.status);
     if (params.search) qs.set('search', params.search);
+    if (params.buyerUserId) qs.set('buyer_user_id', params.buyerUserId);
     return fetchApi<{
       data: Array<{
         id: string;
@@ -577,6 +622,7 @@ listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
     phone?: string;
     role: string;
     level?: number;
+    active?: boolean;
   }) =>
     fetchApi<{ success: boolean; user_id: string; objectId: string }>('/api/v1/users/admin/create', {
       method: 'POST',
@@ -598,11 +644,14 @@ listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
     }),
 
   // 待审核商品列表
-  getPendingProducts: (params: { page?: number; limit?: number; category?: string } = {}) => {
+  getPendingProducts: (params: { page?: number; limit?: number; category?: string; status?: string; creatorId?: string; keyword?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
     if (params.limit) qs.set('limit', String(params.limit));
     if (params.category) qs.set('category', params.category);
+    if (params.status) qs.set('status', params.status);
+    if (params.creatorId) qs.set('creator_id', params.creatorId);
+    if (params.keyword) qs.set('keyword', params.keyword);
     return fetchApi<{
       data: Array<Record<string, unknown>>;
       total: number;
@@ -610,6 +659,85 @@ listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
       limit: number;
     }>(`/api/v1/products/pending?${qs.toString()}`);
   },
+
+  // AI 任务列表（管理员）
+  listTasks: (params: { page?: number; limit?: number; type?: string; status?: number; designer?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.type) qs.set('type', params.type);
+    if (params.status !== undefined && params.status !== null) qs.set('status', String(params.status));
+    if (params.designer) qs.set('designer', params.designer);
+    return fetchApi<{
+      data: Array<{
+        objectId: string;
+        task_id: string;
+        type: string;
+        model: string;
+        status: number;
+        designer: string;
+        username: string;
+        results?: unknown;
+        errorMessage?: string;
+        created_at: string;
+        updated_at?: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/api/v1/tasks/admin/list?${qs.toString()}`);
+  },
+
+  // AI 资产列表（管理员/运营）
+  listAdminAssets: (params: { page?: number; limit?: number; status?: string; category?: string; keyword?: string; ownerId?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.status) qs.set('status', params.status);
+    if (params.category) qs.set('category', params.category);
+    if (params.keyword) qs.set('keyword', params.keyword);
+    if (params.ownerId) qs.set('owner_id', params.ownerId);
+    return fetchApi<{
+      data: Array<{
+        id: string;
+        objectId: string;
+        name: string;
+        description: string;
+        category: string;
+        price: number;
+        status: string;
+        cover: string;
+        assetUrl: string;
+        ownerId: string;
+        ownerName: string;
+        isListed: boolean;
+        listedProductId: string;
+        views: number;
+        createdAt: string;
+        updatedAt?: string;
+        reviewNote?: string;
+        offlineReason?: string;
+        reviewedAt?: string;
+        reviewedBy?: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/api/v1/assets/admin/list?${qs.toString()}`);
+  },
+
+  // 审核 AI 资产（管理员/运营）
+  reviewAsset: (data: { asset_id: string; status: 'approved' | 'rejected'; review_note?: string }) =>
+    fetchApi<{ success: boolean; asset_id: string; status: string }>('/api/v1/assets/admin/review', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // AI 资产统计（管理员/运营）
+  getAssetStats: () =>
+    fetchApi<{ draft: number; pending: number; approved: number; rejected: number; total: number }>(
+      '/api/v1/assets/admin/stats'
+    ),
 
   // 获取系统设置
   getSettings: () =>
@@ -699,11 +827,58 @@ listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
     }),
 
   // 账户明细
-  listAccountRecords: (params: { page?: number; limit?: number } = {}) => {
+  listAccountRecords: (params: { page?: number; limit?: number; userKw?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
     if (params.limit) qs.set('limit', String(params.limit));
-    return fetchApi<{ records: Array<{ id: string; type: string; category: string; amount: number; balance: number; description: string; relatedOrderNo?: string; createdAt: string }>; total: number }>(`/api/v1/admin/accounts/records?${qs.toString()}`);
+    if (params.userKw && params.userKw.trim()) qs.set('user_kw', params.userKw.trim());
+    return fetchApi<{
+      records: Array<{
+        id: string;
+        userId: string;
+        username: string;
+        type: string;
+        category: string;
+        amount: number;
+        balance: number;
+        balance_before?: number;
+        balance_after?: number;
+        description: string;
+        relatedOrderNo?: string;
+        operatorId?: string;
+        operatorName?: string;
+        createdAt: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/api/v1/admin/accounts/records?${qs.toString()}`);
+  },
+
+  // 用户余额列表
+  listUserBalances: (params: { page?: number; limit?: number; keyword?: string; role?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.keyword && params.keyword.trim()) qs.set('keyword', params.keyword.trim());
+    if (params.role) qs.set('role', params.role);
+    return fetchApi<{
+      data: Array<{
+        userId: string;
+        username: string;
+        email: string;
+        role: string;
+        level: number;
+        memberLevel: string;
+        coins: number;
+        status: string;
+        createdAt: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+      pageCoinsTotal: number;
+    }>(`/api/v1/admin/accounts/user-balances?${qs.toString()}`);
   },
 
   accountSummary: () =>
@@ -724,11 +899,52 @@ listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
     }),
 
   // 更新用户信息（Admin权限）
-  updateUser: (userId: string, data: { email?: string; phone?: string; level?: number }) =>
+  updateUser: (userId: string, data: { email?: string; phone?: string; level?: number; status?: string }) =>
     fetchApi<{ success: boolean; message: string }>('/api/v1/users/admin/update', {
       method: 'PUT',
       body: JSON.stringify({ user_id: userId, ...data }),
     }),
+
+  // 查询操作日志（admin 看全部，operator 只看自己）
+  listOperationLogs: (params: {
+    page?: number;
+    limit?: number;
+    action?: string;
+    module?: string;
+    operator_id?: string;
+    keyword?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.action) qs.set('action', params.action);
+    if (params.module) qs.set('module', params.module);
+    if (params.operator_id) qs.set('operator_id', params.operator_id);
+    if (params.keyword) qs.set('keyword', params.keyword);
+    return fetchApi<{
+      data: Array<{
+        objectId: string;
+        operatorId: string;
+        operatorName: string;
+        operatorRole: string;
+        action: string;
+        module: string;
+        targetClass: string;
+        targetId: string;
+        targetName: string;
+        description: string;
+        detail: Record<string, unknown>;
+        ipAddress: string;
+        userAgent: string;
+        status: string;
+        errorMessage: string;
+        createdAt: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/api/v1/operation-logs?${qs.toString()}`);
+  },
 };
 
 // Assets API

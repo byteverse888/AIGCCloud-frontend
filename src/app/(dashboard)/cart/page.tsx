@@ -1,19 +1,31 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCartStore, useAuthStore } from '@/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, Minus, Plus, ShoppingBag } from 'lucide-react';
+import { Trash2, ShoppingBag, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
 export default function CartPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { items, removeItem, updateQuantity, clearCart, getTotalPrice } = useCartStore();
+  const items = useCartStore((s) => s.items);
+  const loading = useCartStore((s) => s.loading);
+  const fetchCart = useCartStore((s) => s.fetchCart);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const getTotalPrice = useCartStore((s) => s.getTotalPrice);
+
+  // 进页时从后端拉取最新购物车（保证多端同步）
+  useEffect(() => {
+    if (user?.objectId) {
+      fetchCart();
+    }
+  }, [user?.objectId, fetchCart]);
 
   const handleCheckout = () => {
     if (items.length === 0) {
@@ -27,6 +39,32 @@ export default function CartPage() {
     }
     router.push('/checkout');
   };
+
+  const handleRemove = async (productId: string) => {
+    try {
+      await removeItem(productId);
+      toast.success('已从购物车移除');
+    } catch (e: any) {
+      toast.error(e?.message || '移除失败');
+    }
+  };
+
+  const handleClear = async () => {
+    try {
+      await clearCart();
+      toast.success('购物车已清空');
+    } catch (e: any) {
+      toast.error(e?.message || '清空失败');
+    }
+  };
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -54,11 +92,9 @@ export default function CartPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">购物车</h1>
-          <p className="text-muted-foreground">
-            共 {items.length} 件商品
-          </p>
+          <p className="text-muted-foreground">共 {items.length} 件商品</p>
         </div>
-        <Button variant="outline" onClick={clearCart}>
+        <Button variant="outline" onClick={handleClear}>
           清空购物车
         </Button>
       </div>
@@ -74,46 +110,16 @@ export default function CartPage() {
                     <div className="h-20 w-20 rounded bg-muted" />
                     <div className="flex-1">
                       <h3 className="font-medium">{item.name}</h3>
-                      <p className="text-lg font-bold text-primary">
-                        ¥{item.price}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() =>
-                          updateQuantity(item.id, Math.max(1, item.quantity - 1))
-                        }
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <Input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateQuantity(item.id, parseInt(e.target.value) || 1)
-                        }
-                        className="w-16 text-center"
-                        min={1}
-                      />
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                      <p className="text-lg font-bold text-primary">¥{item.price}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">数字资产仅限购买 1 份</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">
-                        ¥{(item.price * item.quantity).toFixed(2)}
-                      </p>
+                      <p className="font-bold">¥{item.price.toFixed(2)}</p>
                       <Button
                         size="sm"
                         variant="ghost"
                         className="mt-1 text-destructive"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => handleRemove(item.productId)}
                       >
                         <Trash2 className="mr-1 h-4 w-4" />
                         删除

@@ -41,7 +41,7 @@ export default function CheckoutPage() {
       const result = await paymentApi.queryOrder(oid);
       if (result.status === 'paid') {
         setPolling(false);
-        clearCart();
+        await clearCart();
         toast.success('支付成功！');
         setTimeout(() => {
           router.push('/profile/orders');
@@ -120,7 +120,7 @@ export default function CheckoutPage() {
     try {
       await paymentApi.mockPay(orderId);
       setPolling(false);
-      clearCart();
+      await clearCart();
       toast.success('支付成功！');
       setTimeout(() => {
         router.push('/profile/orders');

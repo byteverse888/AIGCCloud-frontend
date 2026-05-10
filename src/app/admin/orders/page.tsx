@@ -14,6 +14,7 @@ import {
 import { Search, Eye, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
+import { CopyableCell } from '@/components/admin/copyable-cell';
 
 interface Order {
   id: string;
@@ -48,6 +49,8 @@ const statusLabels: Record<string, string> = {
 export default function AdminOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [buyerUserIdInput, setBuyerUserIdInput] = useState('');
+  const [buyerUserId, setBuyerUserId] = useState('');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -57,9 +60,10 @@ export default function AdminOrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string | number> = { page, page_size: pageSize };
+      const params: Record<string, string | number> = { page, limit: pageSize };
       if (statusFilter !== 'all') params.status = statusFilter;
       if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (buyerUserId.trim()) params.buyerUserId = buyerUserId.trim();
       const res = await adminApi.listOrders(params);
       setOrders(res.data || []);
       setTotal(res.total || 0);
@@ -68,7 +72,7 @@ export default function AdminOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, searchQuery]);
+  }, [page, statusFilter, searchQuery, buyerUserId]);
 
   useEffect(() => {
     fetchOrders();
@@ -77,7 +81,7 @@ export default function AdminOrdersPage() {
   // 搜索防抖：重置到第一页
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, buyerUserId]);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -102,6 +106,32 @@ export default function AdminOrdersPage() {
                   className="pl-10"
                 />
               </div>
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="按购买者 userID 或 用户名 搜索..."
+                  value={buyerUserIdInput}
+                  onChange={(e) => setBuyerUserIdInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setBuyerUserId(buyerUserIdInput.trim());
+                    }
+                  }}
+                  className="pl-10"
+                />
+              </div>
+              {buyerUserId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setBuyerUserIdInput('');
+                    setBuyerUserId('');
+                  }}
+                >
+                  清除用户
+                </Button>
+              )}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[120px]">
                   <SelectValue placeholder="状态" />
@@ -127,37 +157,51 @@ export default function AdminOrdersPage() {
             <div className="py-12 text-center text-muted-foreground">暂无订单数据</div>
           ) : (
             <>
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="p-3 text-left text-sm font-medium">订单号</th>
-                      <th className="p-3 text-left text-sm font-medium">用户</th>
-                      <th className="p-3 text-left text-sm font-medium">商品</th>
-                      <th className="p-3 text-left text-sm font-medium">金额</th>
-                      <th className="p-3 text-left text-sm font-medium">状态</th>
-                      <th className="p-3 text-left text-sm font-medium">支付方式</th>
-                      <th className="p-3 text-left text-sm font-medium">创建时间</th>
-                      <th className="p-3 text-left text-sm font-medium">操作</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[180px]">订单号</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[130px]">用户</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[180px]">商品</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap w-[90px]">金额</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[90px]">状态</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[100px]">支付方式</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[150px]">创建时间</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap w-[80px]">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orders.map((order) => (
-                      <tr key={order.id} className="border-b">
-                        <td className="p-3 text-sm font-mono">{order.orderNo}</td>
-                        <td className="p-3 text-sm">{order.user || order.username || order.userId}</td>
-                        <td className="p-3 text-sm">{order.productName || '-'}</td>
-                        <td className="p-3 text-sm font-bold">¥{order.amount}</td>
-                        <td className="p-3 text-sm">
+                      <tr key={order.id} className="border-b hover:bg-muted/30">
+                        <td className="px-3 py-3 text-sm">
+                          <CopyableCell value={order.orderNo} mono maxWidth="max-w-[160px]" />
+                        </td>
+                        <td className="px-3 py-3 text-sm">
+                          <div className="flex flex-col gap-0.5">
+                            <CopyableCell value={order.user || order.username || '-'} maxWidth="max-w-[110px]" />
+                            <span
+                              className="text-[11px] text-muted-foreground truncate max-w-[110px]"
+                              title={order.userId}
+                            >
+                              {order.userId || '-'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm">
+                          <CopyableCell value={order.productName || ''} maxWidth="max-w-[160px]" />
+                        </td>
+                        <td className="px-3 py-3 text-sm text-right font-bold whitespace-nowrap">¥{order.amount}</td>
+                        <td className="px-3 py-3 text-sm whitespace-nowrap">
                           <Badge variant={statusColors[order.status] || 'default'}>
                             {statusLabels[order.status] || order.status}
                           </Badge>
                         </td>
-                        <td className="p-3 text-sm">{order.paymentMethod || '-'}</td>
-                        <td className="p-3 text-sm">
+                        <td className="px-3 py-3 text-sm whitespace-nowrap">{order.paymentMethod || '-'}</td>
+                        <td className="px-3 py-3 text-sm whitespace-nowrap text-muted-foreground">
                           {new Date(order.createdAt).toLocaleString('zh-CN')}
                         </td>
-                        <td className="p-3 text-sm">
+                        <td className="px-3 py-3 text-sm text-right">
                           <Button variant="ghost" size="sm">
                             <Eye className="mr-1 h-4 w-4" />
                             详情

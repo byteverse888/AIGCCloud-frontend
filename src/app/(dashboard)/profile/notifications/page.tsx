@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, ArrowLeft, CheckCircle, Info, AlertTriangle, Gift, Loader2 } from 'lucide-react';
+import { Bell, ArrowLeft, CheckCircle, Info, AlertTriangle, Gift, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +66,9 @@ export default function NotificationsPage() {
   const { user } = useAuthStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     async function loadNotifications() {
@@ -73,9 +76,10 @@ export default function NotificationsPage() {
       
       setLoading(true);
       try {
-        const result = await getUserNotifications(user.objectId);
+        const result = await getUserNotifications(user.objectId, { page, limit: pageSize });
         if (result.success) {
           setNotifications(result.data);
+          setTotal(result.total || 0);
         }
       } catch (error) {
         toast.error('加载通知失败');
@@ -84,7 +88,9 @@ export default function NotificationsPage() {
       }
     }
     loadNotifications();
-  }, [user?.objectId]);
+  }, [user?.objectId, page]);
+
+  const totalPages = Math.ceil(total / pageSize);
 
   const handleMarkAllRead = async () => {
     if (!user?.objectId) return;
@@ -169,6 +175,34 @@ export default function NotificationsPage() {
                     暂无消息
                   </div>
                 )}
+              </div>
+            )}
+
+            {!loading && total > 0 && (
+              <div className="mt-6 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  共 {total} 条记录，第 {page}/{totalPages || 1} 页
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    上一页
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    下一页
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

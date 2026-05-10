@@ -56,7 +56,7 @@ import {
   type Comment,
 } from '@/lib/parse-actions';
 import toast from 'react-hot-toast';
-import { cn } from '@/lib/utils';
+import { cn, copyText } from '@/lib/utils';
 import { mockTransfer, transferWithMetaMask, transferWithPrivateKey, hasExternalWallet } from '@/lib/web3-client';
 import { ProductDetailDialog } from '@/components/product-detail-dialog';
 
@@ -150,14 +150,21 @@ export default function MarketPage() {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleAddToCart = (product: Product) => {
-    addItem({
-      productId: product.objectId,
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-    });
-    toast.success('已加入购物车');
+  const handleAddToCart = async (product: Product) => {
+    if (!user?.objectId) {
+      toast.error('请先登录');
+      return;
+    }
+    try {
+      await addItem({
+        productId: product.objectId,
+        name: product.name,
+        price: product.price,
+      });
+      toast.success('已加入购物车');
+    } catch (e: any) {
+      toast.error(e?.message || '加入购物车失败');
+    }
   };
 
   const handlePurchase = async (product: Product) => {
@@ -205,6 +212,8 @@ export default function MarketPage() {
           setPaymentDialogOpen(false);
           setPendingOrder(null);
           fetchProducts();
+          // 同步刷新右上角购物车角标（后端已移除该商品）
+          void useCartStore.getState().fetchCart();
         } else {
           toast.error(result.error || '验证失败');
         }
@@ -272,6 +281,8 @@ export default function MarketPage() {
         setPendingOrder(null);
         setPrivateKeyInput(''); // 清空输入的私钥
         fetchProducts();
+        // 同步刷新右上角购物车角标（后端已移除该商品）
+        void useCartStore.getState().fetchCart();
       } else {
         toast.error(verifyResult.error || '订单验证失败，请手动验证');
       }
@@ -284,9 +295,10 @@ export default function MarketPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('已复制到剪贴板');
+  const copyToClipboard = async (text: string) => {
+    const ok = await copyText(text);
+    if (ok) toast.success('已复制到剪贴板');
+    else toast.error('复制失败，请手动复制');
   };
 
   const handleFavorite = async (product: Product) => {
@@ -480,7 +492,7 @@ export default function MarketPage() {
                     <Button size="icon" variant="secondary" onClick={() => handleAddToCart(product)} title="加入购物车"><ShoppingCart className="h-4 w-4" /></Button>
                     <Button size="icon" variant="secondary" onClick={() => handleFavorite(product)} className={cn(isFavorited && "bg-yellow-500 hover:bg-yellow-600 text-white")} title={isFavorited ? "取消收藏" : "收藏"}><Bookmark className={cn("h-4 w-4", isFavorited && "fill-current")} /></Button>
                     <Button size="icon" variant="secondary" onClick={() => openCommentDialog(product)} title="查看评论"><MessageCircle className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="secondary" onClick={() => { navigator.clipboard.writeText(window.location.origin + '/market/' + product.objectId); toast.success('链接已复制'); }} title="分享"><Share2 className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="secondary" onClick={async () => { const ok = await copyText(window.location.origin + '/market/' + product.objectId); if (ok) toast.success('链接已复制'); else toast.error('复制失败，请手动复制'); }} title="分享"><Share2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
                 <CardContent className="p-4">

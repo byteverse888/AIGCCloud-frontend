@@ -37,16 +37,15 @@ import {
 export function Header() {
   const t = useTranslations();
   const { user, isAuthenticated, logout } = useAuthStore();
-  const getTotalItems = useCartStore((state) => state.getTotalItems);
-  const [cartItemCount, setCartItemCount] = useState(0);
+  // 订阅 items 长度，让购物车数量随后端数据响应式更新
+  const cartItemCount = useCartStore((state) => state.items.length);
   const [unreadCount, setUnreadCount] = useState(0);
   const [mounted, setMounted] = useState(false);
 
-  // 确保客户端挂载后才获取购物车数量，避免水合错误
+  // 确保客户端挂载后再渲染角标，避免水合不一致
   useEffect(() => {
     setMounted(true);
-    setCartItemCount(getTotalItems());
-  }, [getTotalItems]);
+  }, []);
 
   useEffect(() => {
     if (user?.objectId) {

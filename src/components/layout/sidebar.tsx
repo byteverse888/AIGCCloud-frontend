@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
 import {
   Home,
   Sparkles,
@@ -76,6 +77,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const t = useTranslations();
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const publicConfig = usePublicConfig();
 
   // 管理展开的菜单项
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
@@ -145,7 +147,7 @@ export function Sidebar() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Sparkles className="h-5 w-5" />
               </div>
-              <span className="text-lg font-bold">巴特星球</span>
+              <span className="text-lg font-bold">{publicConfig.productName || publicConfig.siteName || '巴特星球'}</span>
             </Link>
           )}
           {sidebarCollapsed && (

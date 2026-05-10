@@ -4,6 +4,7 @@ import { useUIStore } from '@/store';
 import { cn } from '@/lib/utils';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
+import { SiteFooter } from '@/components/layout/footer';
 
 export default function DashboardLayout({
   children,
@@ -23,6 +24,7 @@ export default function DashboardLayout({
       >
         <Header />
         <main className="flex-1 p-6">{children}</main>
+        <SiteFooter />
       </div>
     </div>
   );

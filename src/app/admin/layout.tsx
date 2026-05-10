@@ -11,6 +11,7 @@ import {
   BarChart3,
   Shield,
   Sparkles,
+  Palette,
 } from 'lucide-react';
 import { useAuthStore } from '@/store';
 
@@ -20,8 +21,10 @@ const baseNavItems = [
   { href: '/admin/users', icon: Users, label: '用户管理' },
   { href: '/admin/roles', icon: Shield, label: '角色管理', adminOnly: true },
   { href: '/admin/products', icon: Package, label: '商品管理' },
+  { href: '/admin/assets', icon: Palette, label: 'AI 资产' },
   { href: '/admin/orders', icon: ShoppingCart, label: '订单管理' },
   { href: '/admin/tasks', icon: ClipboardList, label: '任务中心' },
+  { href: '/admin/operation-logs', icon: ClipboardList, label: '操作日志' },
   { href: '/admin/settings', icon: Settings, label: '系统设置', adminOnly: true },
 ];
 
@@ -40,7 +43,7 @@ export default function AdminLayout({
       title="管理后台"
       icon={Sparkles}
       iconColor="bg-primary text-primary-foreground"
-      allowedRoles={['admin', 'operator']}
+      allowedRoles={['admin']}
       basePath="/admin"
     >
       {children}

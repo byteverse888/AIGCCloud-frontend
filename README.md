@@ -1,6 +1,6 @@
 # AIGC Cloud Frontend
 
-基于 Next.js 16 的 AI 创作平台前端。
+基于 Next.js 的 AI 创作平台前端。
 
 ## 技术栈
 
@@ -23,11 +23,57 @@ pnpm build
 # 代码检查
 pnpm lint
 
-# 启动开发服务
-pnpm dev
-
 # 启动服务
 pnpm start -p 3001
+```
+
+### 启动开发服务
+
+```bash
+pnpm dev
+```
+
+访问地址：
+
+- 用户端：http://localhost:3001
+- 管理后台：http://localhost:3001/admin
+- 运营后台：http://localhost:3001/operator
+
+### 默认内置账号（由后端启动时自动创建）
+
+| 用户名 | 密码 | 角色 |
+| --- | --- | --- |
+| admin | Admin@123456 | 管理员 |
+| operator | Operator@123456 | 运营管理员 |
+| testuser | Test@123456 | 普通用户（测试）|
+
+> 其他普通用户请通过注册页自行注册。
+
+### 构建生产版本
+
+```bash
+pnpm build
+```
+
+### PM2 守护进程（可选）
+
+```bash
+# 安装 PM2
+npm install -g pm2
+
+# 启动
+pm2 start "npx next start -p 3001" --name aigccloud-frontend
+
+# 开机自启
+pm2 startup
+pm2 save
+
+# 常用命令
+pm2 restart aigccloud-frontend   # 重启
+pm2 stop aigccloud-frontend      # 停止
+pm2 delete aigccloud-frontend    # 删除进程
+pm2 status                       # 查看状态
+pm2 logs aigccloud-frontend      # 查看日志
 ```
 
 ## 测试

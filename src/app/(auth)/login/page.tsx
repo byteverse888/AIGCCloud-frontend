@@ -12,12 +12,13 @@ import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store';
 import { loginUser } from '@/lib/parse-actions';
 import { authApi } from '@/lib/api';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, Mail, Smartphone, Loader2 } from 'lucide-react';
+import { Sparkles, Mail, Smartphone, Loader2, RefreshCw } from 'lucide-react';
 
 const loginSchema = z.object({
   username: z.string().min(1, '请输入用户名/手机号/邮箱'),
@@ -30,6 +31,7 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
+  const publicConfig = usePublicConfig();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'password');
 
@@ -37,6 +39,34 @@ function LoginContent() {
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneSending, setPhoneSending] = useState(false);
   const [phoneCountdown, setPhoneCountdown] = useState(0);
+
+  // 图形验证码
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaText, setCaptchaText] = useState('');
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+
+  const refreshCaptcha = async () => {
+    setCaptchaLoading(true);
+    try {
+      const res = await authApi.getCaptcha();
+      setCaptchaId(res.captcha_id);
+      setCaptchaImage(res.image);
+      setCaptchaText('');
+    } catch {
+      toast.error('验证码加载失败');
+    } finally {
+      setCaptchaLoading(false);
+    }
+  };
+
+  // 按开关条件性拉取验证码
+  useEffect(() => {
+    if (publicConfig.loginCaptcha && !captchaId) {
+      refreshCaptcha();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicConfig.loginCaptcha]);
 
   const {
     register,
@@ -80,13 +110,22 @@ function LoginContent() {
   };
 
   const onSubmit = async (data: LoginFormData) => {
+    // 如果开启了验证码，前端先检查是否填写
+    if (publicConfig.loginCaptcha && !captchaText.trim()) {
+      toast.error('请输入图形验证码');
+      return;
+    }
+    const captchaPayload = publicConfig.loginCaptcha
+      ? { captcha_id: captchaId, captcha_text: captchaText.trim() }
+      : undefined;
+
     setIsLoading(true);
     try {
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       const isEmail = emailRegex.test(data.username);
-      
+
       if (isEmail) {
-        const emailResult = await authApi.emailLogin(data.username, data.password);
+        const emailResult = await authApi.emailLogin(data.username, data.password, captchaPayload);
         if (emailResult.success && emailResult.user) {
           handleSetUser(emailResult.user, emailResult.token);
           toast.success('登录成功');
@@ -94,20 +133,21 @@ function LoginContent() {
           return;
         }
       } else {
+        // 后端先走验证码校验，通过后再走 parse-actions 补充信息
+        let backendLogin: Awaited<ReturnType<typeof authApi.login>> | null = null;
+        try {
+          backendLogin = await authApi.login(data.username, data.password, captchaPayload);
+        } catch (err) {
+          // 验证码或密码错误直接报错（需刷新验证码）
+          if (publicConfig.loginCaptcha) refreshCaptcha();
+          throw err;
+        }
         const result = await loginUser(data.username, data.password);
         if (result.success && result.user) {
-          let finalUser = result.user;
-          try {
-            const backendLogin = await authApi.login(data.username, data.password);
-            if (backendLogin.success && backendLogin.token) {
-              finalUser = { ...result.user, ...backendLogin.user };
-              handleSetUser(finalUser, backendLogin.token);
-            } else {
-              handleSetUser(finalUser);
-            }
-          } catch {
-            handleSetUser(finalUser);
-          }
+          const finalUser = backendLogin?.success && backendLogin?.token
+            ? { ...result.user, ...backendLogin.user }
+            : result.user;
+          handleSetUser(finalUser, backendLogin?.token);
           toast.success('登录成功');
           router.push(getRedirectPath(finalUser.role));
         } else {
@@ -187,20 +227,22 @@ function LoginContent() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Sparkles className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl font-bold">巴特星球</CardTitle>
+          <CardTitle className="text-2xl font-bold">{publicConfig.productName || publicConfig.siteName}</CardTitle>
           <CardDescription>登录您的账户</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="password">
                 <Mail className="mr-2 h-4 w-4" />
                 账号登录
               </TabsTrigger>
+              {/* 手机号登录暂隐藏
               <TabsTrigger value="phone">
                 <Smartphone className="mr-2 h-4 w-4" />
                 手机登录
               </TabsTrigger>
+              */}
             </TabsList>
 
             <TabsContent value="password" className="mt-4">
@@ -232,6 +274,35 @@ function LoginContent() {
                     <p className="text-sm text-destructive">{errors.password.message}</p>
                   )}
                 </div>
+                {publicConfig.loginCaptcha && (
+                  <div className="space-y-2">
+                    <Label htmlFor="captcha">图形验证码</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="captcha"
+                        placeholder="请输入验证码"
+                        value={captchaText}
+                        onChange={(e) => setCaptchaText(e.target.value)}
+                        disabled={isLoading}
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={refreshCaptcha}
+                        disabled={captchaLoading}
+                        className="flex h-10 items-center justify-center rounded-md border bg-background px-2 hover:bg-muted"
+                        title="点击刷新验证码"
+                      >
+                        {captchaImage ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={captchaImage} alt="captcha" className="h-full object-contain" />
+                        ) : (
+                          <RefreshCw className={`h-4 w-4 ${captchaLoading ? 'animate-spin' : ''}`} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-sm">
                   <Link href="/forgot-password" className="text-primary hover:underline">
                     忘记密码？
@@ -243,7 +314,7 @@ function LoginContent() {
               </form>
             </TabsContent>
 
-            <TabsContent value="phone" className="mt-4">
+            <TabsContent value="phone" className="mt-4 hidden">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>手机号</Label>

@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store';
 import { createAITask } from '@/lib/parse-actions';
 import { storageApi } from '@/lib/api';
+import { copyText } from '@/lib/utils';
 
 const voices = [
   { value: 'female1', label: '女声 - 温柔' },
@@ -216,11 +217,15 @@ export default function TextToSpeechPage() {
   };
 
   // 复制文本
-  const handleCopy = () => {
-    navigator.clipboard.writeText(recognizedText);
-    setCopied(true);
-    toast.success('已复制到剪贴板');
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    const ok = await copyText(recognizedText);
+    if (ok) {
+      setCopied(true);
+      toast.success('已复制到剪贴板');
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error('复制失败，请手动复制');
+    }
   };
 
   return (

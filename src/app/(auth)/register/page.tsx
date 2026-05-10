@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store';
 import { userApi, authApi } from '@/lib/api';
+import { copyText } from '@/lib/utils';
 import {
   hasExternalWallet,
   connectMetaMask,
@@ -285,12 +286,12 @@ function RegisterContent() {
   };
 
   const copyToClipboard = async (text: string, type: 'address' | 'privateKey' | 'mnemonic') => {
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await copyText(text);
+    if (ok) {
       setCopied(type);
       setTimeout(() => setCopied(null), 2000);
       toast.success('已复制');
-    } catch {
+    } else {
       toast.error('复制失败');
     }
   };

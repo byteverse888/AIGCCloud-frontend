@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { Sparkles, LogOut, ChevronLeft } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -41,6 +42,7 @@ export function AdminShell({
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading } = useAuthStore();
+  const publicConfig = usePublicConfig();
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || !allowedRoles.includes(user?.role || ''))) {
@@ -77,7 +79,10 @@ export function AdminShell({
             <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', iconColor)}>
               <BrandIcon className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold">{title}</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-bold">{publicConfig.productName || publicConfig.siteName || '巴特星球'}</span>
+              <span className="text-xs text-muted-foreground">{title}</span>
+            </div>
           </Link>
         </div>
 

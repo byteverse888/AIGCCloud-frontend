@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { QrCode, Copy, Check, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { copyText } from '@/lib/utils';
 
 interface ShareDialogProps {
   open: boolean;
@@ -25,12 +26,12 @@ export function ShareDialog({ open, onOpenChange, title, description, url, platf
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
+    const ok = await copyText(url);
+    if (ok) {
       setCopied(true);
       toast.success('链接已复制');
       setTimeout(() => setCopied(false), 2000);
-    } catch {
+    } else {
       toast.error('复制失败，请手动复制');
     }
   };

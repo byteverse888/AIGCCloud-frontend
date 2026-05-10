@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, ArrowLeft, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Loader2, CreditCard, Building2, Package, Eye, Star, Users } from 'lucide-react';
+import { Wallet, ArrowLeft, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Loader2, CreditCard, Building2, Package, Eye, Star, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,10 @@ export default function EarningsPage() {
     withdrawn: 0,
   });
   const [earningsHistory, setEarningsHistory] = useState<EarningRecord[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const historyPageSize = 10;
   const [loading, setLoading] = useState(true);
   const [creatorStats, setCreatorStats] = useState({
     totalProducts: 0,
@@ -65,16 +69,9 @@ export default function EarningsPage() {
     
     setLoading(true);
     try {
-      const [statsResult, historyResult] = await Promise.all([
-        getUserEarningStats(user.objectId),
-        getUserEarnings(user.objectId),
-      ]);
-      
+      const statsResult = await getUserEarningStats(user.objectId);
       if (statsResult.success && statsResult.data) {
         setEarningsData(statsResult.data);
-      }
-      if (historyResult.success) {
-        setEarningsHistory(historyResult.data);
       }
 
       // 加载创作者作品统计
@@ -103,9 +100,31 @@ export default function EarningsPage() {
     }
   };
 
+  const loadEarningsHistory = async () => {
+    if (!user?.objectId) return;
+    setHistoryLoading(true);
+    try {
+      const historyResult = await getUserEarnings(user.objectId, { page: historyPage, limit: historyPageSize });
+      if (historyResult.success) {
+        setEarningsHistory(historyResult.data);
+        setHistoryTotal(historyResult.total || 0);
+      }
+    } catch (error) {
+      toast.error('加载收益明细失败');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadEarnings();
   }, [user?.objectId]);
+
+  useEffect(() => {
+    loadEarningsHistory();
+  }, [user?.objectId, historyPage]);
+
+  const historyTotalPages = Math.ceil(historyTotal / historyPageSize);
 
   const handleWithdrawSubmit = async () => {
     if (!user?.objectId) {
@@ -164,6 +183,7 @@ export default function EarningsPage() {
         setWithdrawBankName('');
         // 重新加载数据
         loadEarnings();
+        loadEarningsHistory();
       } else {
         toast.error(result.error || '提现申请失败');
       }
@@ -293,32 +313,62 @@ export default function EarningsPage() {
             <CardDescription>查看您的收益记录</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {historyLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="space-y-4">
-                {earningsHistory.map((item) => (
-                  <div key={item.objectId} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">
-                        {item.type === 'sale' ? '商品售出' : item.type === 'withdraw' ? '提现' : '奖励'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+              <>
+                <div className="space-y-4">
+                  {earningsHistory.map((item) => (
+                    <div key={item.objectId} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <p className="font-medium">
+                          {item.type === 'sale' ? '商品售出' : item.type === 'withdraw' ? '提现' : '奖励'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={item.amount > 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>
+                          {item.amount > 0 ? '+' : ''}¥{Math.abs(item.amount)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{new Date(item.createdAt).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className={item.amount > 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>
-                        {item.amount > 0 ? '+' : ''}¥{Math.abs(item.amount)}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{new Date(item.createdAt).toLocaleDateString()}</p>
+                  ))}
+                  {earningsHistory.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">暂无收益记录</div>
+                  )}
+                </div>
+
+                {historyTotal > 0 && (
+                  <div className="mt-6 flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      共 {historyTotal} 条记录，第 {historyPage}/{historyTotalPages || 1} 页
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={historyPage <= 1}
+                        onClick={() => setHistoryPage((p) => p - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        上一页
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={historyPage >= historyTotalPages}
+                        onClick={() => setHistoryPage((p) => p + 1)}
+                      >
+                        下一页
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                ))}
-                {earningsHistory.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">暂无收益记录</div>
                 )}
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
