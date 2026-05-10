@@ -8,7 +8,6 @@ interface StoreUser extends Omit<User, 'createdAt' | 'updatedAt' | 'memberExpire
   sessionToken?: string;
   jwtToken?: string;
   memberExpireAt?: string | Date;
-  coins?: number;
 }
 
 // ============ UI Store ============

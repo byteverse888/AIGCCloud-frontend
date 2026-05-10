@@ -47,6 +47,7 @@ import {
   toggleLike, 
   createPendingOrder,
   verifyTransferAndCompleteOrder,
+  purchaseWithBalance,
   checkUserLikesAndFavorites, 
   initMarketMockProducts, 
   clearMarketMockProducts,
@@ -56,6 +57,7 @@ import {
   type Comment,
 } from '@/lib/parse-actions';
 import toast from 'react-hot-toast';
+import { incentiveApi } from '@/lib/api';
 import { cn, copyText, stripEmailFromName } from '@/lib/utils';
 import { mockTransfer, transferWithMetaMask, transferWithPrivateKey, hasExternalWallet } from '@/lib/web3-client';
 import { ProductDetailDialog } from '@/components/product-detail-dialog';
@@ -114,8 +116,10 @@ export default function MarketPage() {
   const [privateKeyInput, setPrivateKeyInput] = useState(''); // 私钥输入
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  // 账户积分支付 loading
+  const [payingWithBalance, setPayingWithBalance] = useState(false);
   const { addItem } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { privateKey: storedPrivateKey, walletType } = useWalletStore(); // 从内存获取私钥
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -168,13 +172,13 @@ export default function MarketPage() {
   };
 
   const handlePurchase = async (product: Product) => {
-    if (!user) {
+    if (!user?.objectId) {
       toast.error('请先登录');
       return;
     }
     // 先判断是否是自己的商品（兼容 creatorId 与 Web3 owner 地址匹配）
     const isOwnProduct =
-      (!!product.creatorId && !!user.objectId && product.creatorId === user.objectId) ||
+      (!!product.creatorId && product.creatorId === user.objectId) ||
       (!!product.owner &&
         !!user.web3Address &&
         product.owner.toLowerCase() === user.web3Address.toLowerCase());
@@ -182,31 +186,28 @@ export default function MarketPage() {
       toast.error('不能购买自己的商品');
       return;
     }
-    // 再检查 Web3 钱包是否绑定
-    if (!user.web3Address) {
-      toast.error('请先绑定 Web3 钱包再购买');
+    // 仅账户积分支付：直接确认后扣款
+    if (!confirm(`确定使用账户积分购买「${product.name}」？\n价格: ${product.price} 积分`)) {
       return;
     }
-    if (!confirm(`确定要购买「${product.name}」吗？\n价格: ¥${product.price}\n支付方式: Web3转账`)) {
-      return;
+    setPayingWithBalance(true);
+    try {
+      const res = await purchaseWithBalance(product.objectId);
+      if (res.success) {
+        toast.success(res.message || '购买成功');
+        fetchProducts();
+        try {
+          const bal = await incentiveApi.getBalance();
+          if (user) {
+            setUser({ ...user, totalIncentive: Number(bal.balance || 0) });
+          }
+        } catch {}
+      } else {
+        toast.error(res.error || '支付失败');
+      }
+    } finally {
+      setPayingWithBalance(false);
     }
-    const orderResult = await createPendingOrder(user.objectId, user.web3Address, product);
-    if (!orderResult.success) {
-      toast.error(orderResult.error || '创建订单失败');
-      return;
-    }
-    toast.success(`订单已创建，请向卖家地址转账 ¥${product.price}`);
-    toast(`卖家地址: ${orderResult.sellerAddress?.slice(0, 10)}...`, { duration: 5000 });
-    // 打开支付弹窗
-    setPendingOrder({
-      orderId: orderResult.orderId!,
-      orderNo: orderResult.orderNo!,
-      sellerAddress: orderResult.sellerAddress!,
-      amount: orderResult.amount!,
-      productName: product.name,
-    });
-    setTxHashInput('');
-    setPaymentDialogOpen(true);
   };
 
   const handleVerifyPayment = async () => {
@@ -587,6 +588,8 @@ export default function MarketPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 支付方式选择弹窗已移除：直接走账户余额支付 */}
 
       {/* 支付弹窗 */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>

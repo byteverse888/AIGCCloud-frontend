@@ -1208,6 +1208,47 @@ export async function cancelOrder(orderId: string) {
   return updateObject('Order', orderId, { status: 'cancelled' });
 }
 
+// 使用积分余额购买商品（调用FastAPI，需 JWT）
+export async function purchaseWithBalance(assetId: string) {
+  try {
+    let token: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem('auth-storage');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          token = parsed?.state?.user?.jwtToken || null;
+        }
+      } catch {
+        token = null;
+      }
+    }
+    if (!token) {
+      return { success: false, error: '登录已过期，请重新登录' };
+    }
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${base}/api/v1/assets/${assetId}/purchase-with-balance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { success: false, error: data?.detail || data?.message || '支付失败' };
+    }
+    return {
+      success: true,
+      orderNo: data?.order_no,
+      amount: data?.amount,
+      message: data?.message || '购买成功',
+    };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 // 验证Web3转账并完成订单（调用FastAPI）
 export async function verifyTransferAndCompleteOrder(orderId: string, txHash: string) {
   try {

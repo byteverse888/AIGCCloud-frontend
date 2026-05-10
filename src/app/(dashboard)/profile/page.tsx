@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, 
@@ -13,7 +13,11 @@ import {
   Wallet,
   ChevronRight,
   Edit,
-  Camera
+  Camera,
+  Coins,
+  Gift,
+  ArrowRightLeft,
+  Loader2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,10 +26,19 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuthStore } from '@/store';
 import { getUserStats, getUserEarningStats } from '@/lib/parse-actions';
-import { getCoinBalance } from '@/lib/web3-actions';
+import { incentiveApi } from '@/lib/api';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 // 用户中心菜单
@@ -40,9 +53,10 @@ const profileMenus = [
   { icon: Users, label: '关注作者', href: '/profile/following', desc: '关注的创作者' },
 ];
 
+type ExchangeDirection = 'to_web3' | 'to_balance';
+
 export default function ProfilePage() {
-  const { user } = useAuthStore();
-  // 使用 useSignedUrl 获取头像 URL
+  const { user, setUser } = useAuthStore();
   const { url: avatarUrl } = useSignedUrl(user?.avatarKey);
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState({
@@ -51,41 +65,174 @@ export default function ProfilePage() {
     followerCount: 0,
     followingCount: 0,
   });
-  const [coinBalance, setCoinBalance] = useState(user?.web3Address ? '0' : '-');
   const [totalEarnings, setTotalEarnings] = useState(0);
+
+  // 账户积分 + 链上金币（仅在绑 web3 后有值）
+  const [balance, setBalance] = useState<number>(0);
+  const [coinBalance, setCoinBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+
+  // 签到
+  const [signed, setSigned] = useState<boolean>(false);
+  const [continuousDays, setContinuousDays] = useState<number>(0);
+  const [signLoading, setSignLoading] = useState(false);
+
+  // 兑换
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [exchangeDirection, setExchangeDirection] = useState<ExchangeDirection>('to_web3');
+  const [exchangeAmount, setExchangeAmount] = useState<string>('');
+  const [exchangeRate, setExchangeRate] = useState<{ points: number; coins: number }>({ points: 100, coins: 1 });
+  const [exchanging, setExchanging] = useState(false);
+
+  const loadBalance = useCallback(async () => {
+    if (!user?.objectId) return;
+    setBalanceLoading(true);
+    try {
+      const res = await incentiveApi.getBalance();
+      setBalance(Number(res.balance || 0));
+      // 后端：未绑 web3 时 coins 为 null
+      setCoinBalance(res.coins == null ? null : Number(res.coins));
+      // 同步到 store（购买/签到/兑换后刷新）
+      if (user && Number(res.balance || 0) !== Number(user.totalIncentive || 0)) {
+        setUser({ ...user, totalIncentive: Number(res.balance || 0) });
+      }
+    } catch (e) {
+      console.error('[profile] 加载余额失败', e);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, [user, setUser]);
+
+  const loadSignStatus = useCallback(async () => {
+    try {
+      const r = await incentiveApi.getDailySignStatus();
+      setSigned(!!r.signed);
+      setContinuousDays(Number(r.continuousDays || 0));
+    } catch (e) {
+      console.error('[profile] 加载签到状态失败', e);
+    }
+  }, []);
+
+  const loadExchangeRate = useCallback(async () => {
+    try {
+      const r = await incentiveApi.getExchangeRate();
+      setExchangeRate({ points: Number(r.points || 100), coins: Number(r.coins || 1) });
+    } catch (e) {
+      console.error('[profile] 加载兑换比例失败', e);
+    }
+  }, []);
 
   useEffect(() => {
     async function loadUserData() {
       if (!user?.objectId) return;
-      
       try {
-        // 加载统计数据
         const statsResult = await getUserStats(user.objectId);
         if (statsResult.success && statsResult.data) {
           setStats(statsResult.data);
         }
-        
-        // 加载收益统计
         const earningsResult = await getUserEarningStats(user.objectId);
         if (earningsResult.success && earningsResult.data) {
           setTotalEarnings(earningsResult.data.totalEarnings);
-        }
-        
-        // 加载金币余额
-        if (user.web3Address) {
-          const balanceResult = await getCoinBalance(user.web3Address);
-          if (balanceResult.success) {
-            setCoinBalance(balanceResult.balance || '0');
-          }
-        } else {
-          setCoinBalance('-'); // 未绑定账户显示 -
         }
       } catch (error) {
         console.error('加载用户数据失败:', error);
       }
     }
     loadUserData();
-  }, [user?.objectId, user?.web3Address]);
+    loadBalance();
+    loadSignStatus();
+    loadExchangeRate();
+  }, [user?.objectId, loadBalance, loadSignStatus, loadExchangeRate]);
+
+  const handleDailySign = async () => {
+    if (signed || signLoading) return;
+    setSignLoading(true);
+    try {
+      const r = await incentiveApi.dailySign();
+      if (r.success) {
+        toast.success(`签到成功，获得 ${r.amount || 0} 积分${r.continuousDays ? `（连续 ${r.continuousDays} 天）` : ''}`);
+        setSigned(true);
+        setContinuousDays(Number(r.continuousDays || continuousDays + 1));
+        await loadBalance();
+      } else {
+        toast.error(r.message || '签到失败');
+        if (r.signed) setSigned(true);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '签到失败';
+      toast.error(msg);
+    } finally {
+      setSignLoading(false);
+    }
+  };
+
+  const openExchange = (direction: ExchangeDirection) => {
+    if (!user?.web3Address) {
+      toast.error('请先绑定 Web3 钱包');
+      return;
+    }
+    setExchangeDirection(direction);
+    setExchangeAmount('');
+    setExchangeOpen(true);
+  };
+
+  const handleExchange = async () => {
+    const amt = Number(exchangeAmount);
+    if (!amt || amt <= 0) {
+      toast.error('请输入有效金额');
+      return;
+    }
+    setExchanging(true);
+    try {
+      if (exchangeDirection === 'to_web3') {
+        if (!user?.web3Address) {
+          toast.error('请先绑定 Web3 钱包');
+          return;
+        }
+        const r = await incentiveApi.exchangeToWeb3(amt);
+        if (r.success) {
+          toast.success(`已兑换：${amt} 积分 → ${r.coins ?? 0} 金币`);
+          setExchangeOpen(false);
+          await loadBalance();
+        } else {
+          toast.error(r.message || '兑换失败');
+        }
+      } else {
+        if (!user?.web3Address) {
+          toast.error('请先绑定 Web3 钱包');
+          return;
+        }
+        const r = await incentiveApi.exchangeToBalance(amt);
+        if (r.success) {
+          toast.success(`已兑换：${amt} 金币 → ${r.points ?? 0} 积分`);
+          setExchangeOpen(false);
+          await loadBalance();
+        } else {
+          toast.error(r.message || '兑换失败');
+        }
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '兑换失败';
+      toast.error(msg);
+    } finally {
+      setExchanging(false);
+    }
+  };
+
+  // 预览换算
+  const previewAmount = (() => {
+    const amt = Number(exchangeAmount);
+    if (!amt || amt <= 0) return 0;
+    if (exchangeDirection === 'to_web3') {
+      // 积分 -> 金币：amt / points * coins
+      if (!exchangeRate.points) return 0;
+      return Number(((amt / exchangeRate.points) * exchangeRate.coins).toFixed(6));
+    } else {
+      // 金币 -> 积分：amt / coins * points
+      if (!exchangeRate.coins) return 0;
+      return Number(((amt / exchangeRate.coins) * exchangeRate.points).toFixed(2));
+    }
+  })();
 
   return (
     <div className="space-y-6">
@@ -134,21 +281,41 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* 编辑按钮 */}
-              <Button variant="outline" asChild>
-                <Link href="/profile/settings">
-                  <Edit className="h-4 w-4 mr-2" />
-                  编辑资料
-                </Link>
-              </Button>
+              {/* 右上角操作按钮 */}
+              <div className="flex flex-col md:flex-row gap-2">
+                <Button
+                  variant={signed ? 'secondary' : 'default'}
+                  onClick={handleDailySign}
+                  disabled={signed || signLoading}
+                >
+                  {signLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Gift className="h-4 w-4 mr-2" />}
+                  {signed ? `已签到（${continuousDays}天）` : '每日签到'}
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/profile/settings">
+                    <Edit className="h-4 w-4 mr-2" />
+                    编辑资料
+                  </Link>
+                </Button>
+              </div>
             </div>
 
-            {/* 统计数据 */}
+            {/* 余额/统计 */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-6 border-t">
               <div className="text-center">
-                <p className="text-2xl font-bold text-primary">{coinBalance}</p>
-                <p className="text-sm text-muted-foreground">金币余额</p>
+                <p className="text-2xl font-bold text-primary">
+                  {balanceLoading ? '...' : balance.toLocaleString()}
+                </p>
+                <p className="text-sm text-muted-foreground">账户积分</p>
               </div>
+              {user?.web3Address && (
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-amber-500">
+                    {coinBalance == null ? '-' : coinBalance.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-muted-foreground">链上金币</p>
+                </div>
+              )}
               <div className="text-center">
                 <p className="text-2xl font-bold text-green-500">{totalEarnings}</p>
                 <p className="text-sm text-muted-foreground">累计收益</p>
@@ -161,11 +328,36 @@ export default function ProfilePage() {
                 <p className="text-2xl font-bold">{stats.followerCount}</p>
                 <p className="text-sm text-muted-foreground">粉丝数</p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">{stats.followingCount}</p>
-                <p className="text-sm text-muted-foreground">关注数</p>
-              </div>
             </div>
+
+            {/* 兑换入口（仅绑定 Web3 后可见） */}
+            {user?.web3Address ? (
+              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
+                <Button variant="outline" size="sm" onClick={() => openExchange('to_web3')}>
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  积分 → 金币
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => openExchange('to_balance')}>
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  金币 → 积分
+                </Button>
+                <div className="text-xs text-muted-foreground self-center ml-2">
+                  兑换比例：{exchangeRate.points} 积分 = {exchangeRate.coins} 金币
+                </div>
+                <Button variant="ghost" size="sm" onClick={loadBalance} disabled={balanceLoading} className="ml-auto">
+                  {balanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
+                  <span className="ml-1">刷新</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t text-xs text-muted-foreground">
+                <span>绑定 Web3 钱包后可在账户积分与链上金币之间兑换</span>
+                <Button variant="ghost" size="sm" onClick={loadBalance} disabled={balanceLoading} className="ml-auto">
+                  {balanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
+                  <span className="ml-1">刷新</span>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -249,6 +441,61 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* 兑换对话框 */}
+      <Dialog open={exchangeOpen} onOpenChange={setExchangeOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {exchangeDirection === 'to_web3' ? '账户积分兑换为链上金币' : '链上金币兑换为账户积分'}
+            </DialogTitle>
+            <DialogDescription>
+              当前比例 {exchangeRate.points} 积分 = {exchangeRate.coins} 金币
+              {exchangeDirection === 'to_web3'
+                ? `；积分需为 ${exchangeRate.points} 的整数倍`
+                : `；金币需为 ${exchangeRate.coins} 的整数倍`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label>
+                {exchangeDirection === 'to_web3' ? '消耗积分' : '消耗金币'}
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                step={exchangeDirection === 'to_web3' ? exchangeRate.points : exchangeRate.coins}
+                value={exchangeAmount}
+                onChange={(e) => setExchangeAmount(e.target.value)}
+                placeholder={
+                  exchangeDirection === 'to_web3'
+                    ? `输入 ${exchangeRate.points} 的整数倍`
+                    : `输入 ${exchangeRate.coins} 的整数倍`
+                }
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              预计获得：
+              <span className="text-foreground font-semibold ml-1">
+                {previewAmount}
+                {exchangeDirection === 'to_web3' ? ' 金币' : ' 积分'}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              当前：{balance.toLocaleString()} 积分{coinBalance != null ? ` / ${coinBalance.toLocaleString()} 金币` : ''}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExchangeOpen(false)} disabled={exchanging}>
+              取消
+            </Button>
+            <Button onClick={handleExchange} disabled={exchanging}>
+              {exchanging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              确认兑换
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

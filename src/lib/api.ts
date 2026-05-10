@@ -159,7 +159,6 @@ export const authApi = {
         role: string;
         level: number;
         memberLevel: 'normal' | 'vip' | 'svip';
-        coins: number;
         avatar?: string;
         avatarKey?: string;
         web3Address: string;
@@ -185,7 +184,6 @@ export const authApi = {
         role: string;
         level: number;
         memberLevel: 'normal' | 'vip' | 'svip';
-        coins: number;
         avatar?: string;
         avatarKey?: string;
         web3Address: string;
@@ -236,7 +234,6 @@ export const authApi = {
         level: number;
         memberLevel: 'normal' | 'vip' | 'svip';
         memberExpireAt?: string;
-        coins: number;
         avatar?: string;
         avatarKey?: string;
         web3Address?: string;
@@ -344,6 +341,72 @@ export const incentiveApi = {
 
   getIncentiveHistory: (userId: string, page = 1, limit = 20) =>
     fetchApi(`/api/v1/incentive/history/${userId}?page=${page}&limit=${limit}`),
+
+  // 获取余额汇总（账户积分 + 链上金币；未绑 web3 时 coins=null）
+  getBalance: () =>
+    fetchApi<{
+      balance: number;              // 账户积分（totalIncentive）
+      coins: number | null;         // 链上金币（未绑 web3 时为 null）
+      web3_address?: string | null;
+      member_level: string;
+    }>('/api/v1/incentive/balance'),
+
+  // 获取账户积分余额
+  getAccountBalance: () =>
+    fetchApi<{ balance: number; user_id: string }>(
+      '/api/v1/incentive/account-balance'
+    ),
+
+  // 每日签到
+  dailySign: () =>
+    fetchApi<{
+      success: boolean;
+      signed?: boolean;
+      amount?: number;
+      balance_after?: number;
+      continuousDays?: number;
+      message?: string;
+    }>('/api/v1/incentive/daily-sign', { method: 'POST' }),
+
+  // 签到状态
+  getDailySignStatus: () =>
+    fetchApi<{ signed: boolean; continuousDays: number; date: string }>(
+      '/api/v1/incentive/daily-sign/status'
+    ),
+
+  // 兑换比例
+  getExchangeRate: () =>
+    fetchApi<{ points: number; coins: number }>(
+      '/api/v1/incentive/exchange-rate'
+    ),
+
+  // 账户积分 → 链上金币
+  exchangeToWeb3: (amount: number) =>
+    fetchApi<{
+      success: boolean;
+      points?: number;     // 已扣账户积分
+      coins?: number;      // 已铸造链上金币
+      tx_hash?: string;
+      message?: string;
+      error?: string;
+    }>('/api/v1/incentive/exchange-to-web3', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    }),
+
+  // 链上金币 → 账户积分
+  exchangeToBalance: (amount: number) =>
+    fetchApi<{
+      success: boolean;
+      coins?: number;      // 已销毁链上金币
+      points?: number;     // 已到账账户积分
+      tx_hash?: string;
+      message?: string;
+      error?: string;
+    }>('/api/v1/incentive/exchange-to-balance', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    }),
 };
 
 // Promotion API
@@ -878,14 +941,14 @@ listUsers: (params: { page?: number; limit?: number; role?: string } = {}) => {
         role: string;
         level: number;
         memberLevel: string;
-        coins: number;
+        balance: number;
         status: string;
         createdAt: string;
       }>;
       total: number;
       page: number;
       limit: number;
-      pageCoinsTotal: number;
+      pageBalanceTotal: number;
     }>(`/api/v1/admin/accounts/user-balances?${qs.toString()}`);
   },
 

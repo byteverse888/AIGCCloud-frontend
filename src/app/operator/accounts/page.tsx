@@ -34,7 +34,7 @@ interface UserBalance {
   role: string;
   level: number;
   memberLevel: string;
-  coins: number;
+  balance: number;
   status: string;
   createdAt: string;
 }
@@ -53,7 +53,7 @@ export default function OperatorAccountsPage() {
   // 用户余额
   const [balances, setBalances] = useState<UserBalance[]>([]);
   const [balancesTotal, setBalancesTotal] = useState(0);
-  const [pageCoinsTotal, setPageCoinsTotal] = useState(0);
+  const [pageBalanceTotal, setPageBalanceTotal] = useState(0);
   const [balancesLoading, setBalancesLoading] = useState(false);
   const [balanceSearch, setBalanceSearch] = useState('');
   const [balanceKw, setBalanceKw] = useState('');
@@ -82,7 +82,7 @@ export default function OperatorAccountsPage() {
       const res = await adminApi.listUserBalances({ limit: 50, keyword: kw || undefined });
       setBalances(res.data || []);
       setBalancesTotal(res.total || 0);
-      setPageCoinsTotal(res.pageCoinsTotal || 0);
+      setPageBalanceTotal(res.pageBalanceTotal || 0);
       setBalancesLoaded(true);
     } catch {
       toast.error('加载用户余额失败');
@@ -273,7 +273,7 @@ export default function OperatorAccountsPage() {
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <CardTitle className="text-base">
                 用户余额（当前页 {balances.length} / 共 {balancesTotal} 人，本页合计 ¥
-                {pageCoinsTotal.toLocaleString()}）
+                {pageBalanceTotal.toLocaleString()}）
               </CardTitle>
               <div className="flex items-center gap-2">
                 <Input
@@ -359,7 +359,7 @@ export default function OperatorAccountsPage() {
                             </Badge>
                           </td>
                           <td className="py-2 px-3 text-right font-bold">
-                            ¥{u.coins.toLocaleString()}
+                            ¥{u.balance.toLocaleString()}
                           </td>
                         </tr>
                       ))}

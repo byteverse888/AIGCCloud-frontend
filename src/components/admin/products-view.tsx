@@ -54,6 +54,9 @@ interface Product {
   reportCount?: number;
   offlineReason?: string;
   reviewNote?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewerName?: string;
 }
 
 const categoryIcons: Record<string, typeof ImageIcon> = {
@@ -139,6 +142,9 @@ export function ProductsView({
         reportCount: (p.reportCount as number) || 0,
         offlineReason: (p.offlineReason as string) || '',
         reviewNote: (p.reviewNote as string) || '',
+        reviewedAt: (p.reviewedAt as string) || '',
+        reviewedBy: (p.reviewedBy as string) || '',
+        reviewerName: (p.reviewerName as string) || '',
       }));
       setProducts(items);
       setTotal(result.total);
@@ -532,6 +538,7 @@ export function ProductsView({
                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[90px]">状态</th>
                     <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap w-[70px]">销量</th>
                     <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap w-[70px]">投诉</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[150px]">审核人/时间</th>
                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[150px]">创建时间</th>
                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[220px]">操作</th>
                   </tr>
@@ -620,6 +627,18 @@ export function ProductsView({
                             </span>
                           ) : (
                             <span className="text-muted-foreground">0</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {product.reviewedAt ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-foreground" title={product.reviewedBy}>
+                                {product.reviewerName || product.reviewedBy || '-'}
+                              </span>
+                              <span>{formatDate(product.reviewedAt)}</span>
+                            </div>
+                          ) : (
+                            <span>-</span>
                           )}
                         </td>
                         <td className="px-3 py-3 text-sm whitespace-nowrap text-muted-foreground">
@@ -797,6 +816,28 @@ export function ProductsView({
                     <p className="mt-1 text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap break-all">
                       {detailProduct.description}
                     </p>
+                  </div>
+                )}
+                {detailProduct.reviewedAt && (
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <Label>审核信息</Label>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">审核人：</span>
+                        <span className="font-medium">
+                          {detailProduct.reviewerName || detailProduct.reviewedBy || '-'}
+                        </span>
+                        {detailProduct.reviewerName && detailProduct.reviewedBy && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({detailProduct.reviewedBy})
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">审核时间：</span>
+                        <span>{formatDate(detailProduct.reviewedAt)}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {detailProduct.reviewNote && (

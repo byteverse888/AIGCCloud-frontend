@@ -57,6 +57,7 @@ interface AssetRow {
   offlineReason?: string;
   reviewedAt?: string;
   reviewedBy?: string;
+  reviewerName?: string;
 }
 
 const statusLabels: Record<string, string> = {
@@ -458,6 +459,23 @@ export function AssetsView({ title = 'AI 资产管理', subtitle = '审核和管
                   <p className="mt-1 whitespace-pre-wrap">{selected.description}</p>
                 </div>
               )}
+              {selected.reviewedAt && (
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <Label>审核信息</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">审核人：</span>
+                      <span className="font-medium">
+                        {selected.reviewerName || selected.reviewedBy || '-'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">审核时间：</span>
+                      <span>{new Date(selected.reviewedAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               {(selected.status === 'rejected' || selected.status === 'offline') && (selected.reviewNote || selected.offlineReason) && (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
                   <Label className="text-destructive">
@@ -466,11 +484,6 @@ export function AssetsView({ title = 'AI 资产管理', subtitle = '审核和管
                   <p className="mt-1 whitespace-pre-wrap text-sm text-destructive">
                     {selected.offlineReason || selected.reviewNote}
                   </p>
-                  {selected.reviewedAt && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      审核时间：{new Date(selected.reviewedAt).toLocaleString()}
-                    </p>
-                  )}
                 </div>
               )}
               {selected.assetUrl && (
